@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Build and check links
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      # The build reads ../docs/{research,architecture} and ../core/api/openapi.yaml.
+      - uses: actions/checkout@v7
+        with:
+          path: website
+      - uses: actions/checkout@v7
+        with:
+          repository: thecalibanproject/docs
+          path: docs
+      - uses: actions/checkout@v7
+        with:
+          repository: thecalibanproject/core
+          path: core
+          sparse-checkout: api
+      - uses: actions/setup-node@v7
+        with:
+          # Astro 7 requires node >= 22.12
+          node-version: 22
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm run check:links
