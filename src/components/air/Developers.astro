@@ -1,0 +1,100 @@
+---
+import CodeBlock from '../ui/CodeBlock.astro';
+import { ANTHROPIC_PY, CURL, PY_OPENAI, TS_SDK } from '../../data/samples';
+
+const tabs = [
+  { id: 'py', label: 'OpenAI SDK', lang: 'python', code: PY_OPENAI },
+  { id: 'anth', label: 'Anthropic SDK', lang: 'python', code: ANTHROPIC_PY },
+  { id: 'ts', label: 'Caliban SDK', lang: 'typescript', code: TS_SDK },
+  { id: 'curl', label: 'curl', lang: 'bash', code: CURL },
+];
+const headers = [
+  ['x-caliban-request-id', 'req_01J…', 'Correlates logs, usage and traces'],
+  ['x-caliban-routed-model', 'local/qwen3.8-27b', 'Which model actually answered'],
+  ['x-caliban-cache', 'hit | miss | bypass', 'Whether the answer cost tokens'],
+  ['x-caliban-pii-entities', '3', 'Values surrogated before an outside provider'],
+  ['x-caliban-cost-usd', '0.00000000', 'Non-streaming responses, priced models'],
+];
+---
+<section class="section paper dev" aria-labelledby="dev-title">
+  <div class="container">
+    <div class="head">
+      <h2 id="dev-title">Change one line.</h2>
+      <p>Point the SDK you already use at Caliban. OpenAI- and Anthropic-compatible endpoints, plus an optional <code>caliban</code> object for PII, cache, datasources and reasoning that other clients simply ignore.</p>
+    </div>
+
+    <div class="dev-grid">
+      <div class="tabs" data-tabs>
+        <div class="tablist" role="tablist" aria-label="Client">
+          {tabs.map((t, i) => (
+            <button type="button" role="tab" id={`tab-${t.id}`} aria-controls={`panel-${t.id}`} aria-selected={i === 0 ? 'true' : 'false'} tabindex={i === 0 ? 0 : -1}>{t.label}</button>
+          ))}
+        </div>
+        {tabs.map((t, i) => (
+          <div role="tabpanel" id={`panel-${t.id}`} aria-labelledby={`tab-${t.id}`} hidden={i !== 0}>
+            <CodeBlock code={t.code} lang={t.lang} />
+          </div>
+        ))}
+      </div>
+
+      <div class="hdrs">
+        <p class="cap hdrs-cap">What comes back</p>
+        <ol class="hdr-list">
+          {headers.map(([h, v, d]) => (
+            <li>
+              <code class="h">{h}</code>
+              <span class="v datum">{v}</span>
+              <span class="d">{d}</span>
+            </li>
+          ))}
+        </ol>
+        <p class="dev-links"><a href="/developers/" class="link-arrow">API reference</a> <a href="/developers/#sdks" class="link-arrow">SDKs, Apache-2.0</a></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-tabs]').forEach((root) => {
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    const select = (t: HTMLButtonElement) => {
+      tabs.forEach((x) => {
+        const on = x === t;
+        x.setAttribute('aria-selected', String(on));
+        x.tabIndex = on ? 0 : -1;
+        const p = root.querySelector<HTMLElement>(`#${x.getAttribute('aria-controls')}`);
+        if (p) p.hidden = !on;
+      });
+    };
+    tabs.forEach((t, i) => {
+      t.addEventListener('click', () => select(t));
+      t.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+        e.preventDefault();
+        const n = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+        select(n); n.focus();
+      });
+    });
+  });
+</script>
+
+<style>
+  .dev-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 40px; align-items: stretch; }
+  .tabs { display: flex; flex-direction: column; }
+  .tabs [role='tabpanel']:not([hidden]) { flex: 1; display: flex; }
+  .tabs [role='tabpanel'] :global(.codeblock) { flex: 1; }
+  .tablist { display: flex; flex-wrap: wrap; border: 1px solid var(--scope-line-2); border-bottom: 0; background: var(--scope-1); }
+  [role='tab'] { background: transparent; border: 0; border-right: 1px solid var(--scope-line); color: var(--readout-2); padding: 11px 16px; font-family: var(--display); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.92rem; cursor: pointer; }
+  [role='tab']:hover { color: #fff; }
+  [role='tab'][aria-selected='true'] { background: var(--blue); color: #fff; }
+  [role='tab']:focus-visible { outline: 2px solid var(--target); outline-offset: -3px; }
+  .tabs :global(.codeblock) { font-size: 0.86rem; }
+  .hdrs-cap { color: var(--ink-3); margin-bottom: 10px; }
+  .hdr-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .hdr-list li { display: grid; grid-template-columns: minmax(0, 1fr); background: var(--strip); border: 1px solid var(--rule); padding: 10px 14px; gap: 2px; }
+  .hdr-list .h { background: none; padding: 0; color: var(--blue-deep); font-weight: 600; font-size: 0.78rem; }
+  .hdr-list .v { color: var(--ink); }
+  .hdr-list .d { color: var(--ink-3); font-size: 0.9rem; }
+  .dev-links { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 18px; }
+  @media (max-width: 1080px) { .dev-grid { grid-template-columns: minmax(0, 1fr); } }
+</style>

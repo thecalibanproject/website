@@ -1,0 +1,619 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-08T21:50:15+00:00",
+  "title": "Design System: Caliban",
+  "extensions": {
+    "colorMeta": {
+      "caliban-blue": {
+        "role": "primary",
+        "displayName": "Caliban Blue",
+        "canonical": "#1D4ED8",
+        "oklch": "oklch(48.8% 0.217 264.4)",
+        "tonalRamp": [
+          "#010629",
+          "#071D5B",
+          "#163893",
+          "#2554CE",
+          "#4478F6",
+          "#78A2FD",
+          "#AFC9FE",
+          "#E7EFFF"
+        ]
+      },
+      "caliban-blue-hi": {
+        "role": "primary",
+        "displayName": "Signal Blue",
+        "canonical": "#3E6CF2",
+        "oklch": "oklch(57.7% 0.208 265.8)",
+        "tonalRamp": [
+          "#020728",
+          "#0B1E59",
+          "#1C388F",
+          "#2D54CA",
+          "#4C79F1",
+          "#7BA1FD",
+          "#B1C9FE",
+          "#E7EFFF"
+        ]
+      },
+      "caliban-blue-deep": {
+        "role": "primary",
+        "displayName": "Deep Blue",
+        "canonical": "#102E7A",
+        "oklch": "oklch(33.4% 0.134 264.0)",
+        "tonalRamp": [
+          "#030A1E",
+          "#132347",
+          "#273F75",
+          "#3D5EA6",
+          "#5D80CB",
+          "#86A4E2",
+          "#B2C9F8",
+          "#E7EFFF"
+        ]
+      },
+      "hold-amber": {
+        "role": "secondary",
+        "displayName": "Hold Amber",
+        "canonical": "#F2B544",
+        "oklch": "oklch(81.0% 0.144 79.3)",
+        "tonalRamp": [
+          "#150800",
+          "#342100",
+          "#583C00",
+          "#7F5905",
+          "#A9780B",
+          "#C79D56",
+          "#E4C491",
+          "#FEECCF"
+        ]
+      },
+      "hold-amber-ink": {
+        "role": "secondary",
+        "displayName": "Amber Ink",
+        "canonical": "#8A5A00",
+        "oklch": "oklch(50.8% 0.108 73.3)",
+        "tonalRamp": [
+          "#140800",
+          "#352000",
+          "#5A3B05",
+          "#825711",
+          "#A6793A",
+          "#C39E6E",
+          "#E0C4A1",
+          "#FEEBD5"
+        ]
+      },
+      "scope-night": {
+        "role": "neutral",
+        "displayName": "Scope Night",
+        "canonical": "#040B1C",
+        "oklch": "oklch(15.3% 0.039 262.5)",
+        "tonalRamp": [
+          "#080B11",
+          "#20252F",
+          "#3A4251",
+          "#576276",
+          "#778398",
+          "#9CA5B7",
+          "#C2C9D7",
+          "#EAEFF7"
+        ]
+      },
+      "scope": {
+        "role": "neutral",
+        "displayName": "Scope",
+        "canonical": "#06122A",
+        "oklch": "oklch(18.7% 0.052 261.9)",
+        "tonalRamp": [
+          "#070B13",
+          "#1E2532",
+          "#374256",
+          "#53627C",
+          "#73839F",
+          "#98A6BD",
+          "#C0CADB",
+          "#E8EFFB"
+        ]
+      },
+      "scope-raised": {
+        "role": "neutral",
+        "displayName": "Scope Raised",
+        "canonical": "#0A1A39",
+        "oklch": "oklch(22.4% 0.064 262.1)",
+        "tonalRamp": [
+          "#070B14",
+          "#1C2536",
+          "#35425B",
+          "#4F6183",
+          "#6F83A6",
+          "#96A6C2",
+          "#BDCAE0",
+          "#E7EFFD"
+        ]
+      },
+      "scope-well": {
+        "role": "neutral",
+        "displayName": "Scope Well",
+        "canonical": "#0F2448",
+        "oklch": "oklch(26.6% 0.072 260.4)",
+        "tonalRamp": [
+          "#060B15",
+          "#1A2538",
+          "#32425E",
+          "#4C6287",
+          "#6C83AA",
+          "#93A6C6",
+          "#BBCAE3",
+          "#E6EFFE"
+        ]
+      },
+      "scope-ring": {
+        "role": "neutral",
+        "displayName": "Scope Ring",
+        "canonical": "#1C3B73",
+        "oklch": "oklch(36.2% 0.103 261.1)",
+        "tonalRamp": [
+          "#040B1A",
+          "#16253F",
+          "#2B4169",
+          "#426196",
+          "#6282BB",
+          "#8BA6D4",
+          "#B6CAED",
+          "#E6EFFE"
+        ]
+      },
+      "scope-line": {
+        "role": "neutral",
+        "displayName": "Scope Line",
+        "canonical": "rgba(124, 196, 255, 0.16)",
+        "tonalRamp": [
+          "#000C19",
+          "#06273F",
+          "#154669",
+          "#256696",
+          "#4988BA",
+          "#7AABD4",
+          "#AACEED",
+          "#E1F1FE"
+        ]
+      },
+      "scope-line-strong": {
+        "role": "neutral",
+        "displayName": "Scope Line Strong",
+        "canonical": "rgba(124, 196, 255, 0.3)",
+        "tonalRamp": [
+          "#000C19",
+          "#06273F",
+          "#154669",
+          "#256696",
+          "#4988BA",
+          "#7AABD4",
+          "#AACEED",
+          "#E1F1FE"
+        ]
+      },
+      "target-cyan": {
+        "role": "tertiary",
+        "displayName": "Target Cyan",
+        "canonical": "#7CC4FF",
+        "oklch": "oklch(79.6% 0.111 244.6)",
+        "tonalRamp": [
+          "#000C19",
+          "#06273F",
+          "#154669",
+          "#256696",
+          "#4988BA",
+          "#7AABD4",
+          "#AACEED",
+          "#E1F1FE"
+        ]
+      },
+      "readout": {
+        "role": "neutral",
+        "displayName": "Readout",
+        "canonical": "#E8F1FF",
+        "oklch": "oklch(95.6% 0.021 259.2)",
+        "tonalRamp": [
+          "#090B0E",
+          "#22252B",
+          "#3D424A",
+          "#5B626C",
+          "#7C838E",
+          "#9FA5AF",
+          "#C5C9D1",
+          "#ECEFF3"
+        ]
+      },
+      "readout-2": {
+        "role": "neutral",
+        "displayName": "Readout Secondary",
+        "canonical": "#A9BEDF",
+        "oklch": "oklch(79.7% 0.052 259.4)",
+        "tonalRamp": [
+          "#070B13",
+          "#1D2533",
+          "#364356",
+          "#51627D",
+          "#72839F",
+          "#97A6BD",
+          "#BFCADC",
+          "#E8EFFB"
+        ]
+      },
+      "readout-3": {
+        "role": "neutral",
+        "displayName": "Readout Muted",
+        "canonical": "#7F96BD",
+        "oklch": "oklch(67.0% 0.064 260.9)",
+        "tonalRamp": [
+          "#060B14",
+          "#1C2535",
+          "#34425A",
+          "#4F6282",
+          "#6F83A6",
+          "#95A6C2",
+          "#BDCAE0",
+          "#E7EFFD"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "#F6F9FD",
+        "oklch": "oklch(98.1% 0.006 255.5)",
+        "tonalRamp": [
+          "#090B0E",
+          "#232528",
+          "#404245",
+          "#5F6165",
+          "#808286",
+          "#A2A5A9",
+          "#C6C9CD",
+          "#ECEFF3"
+        ]
+      },
+      "strip-ice": {
+        "role": "neutral",
+        "displayName": "Strip Ice",
+        "canonical": "#E8F1FF",
+        "oklch": "oklch(95.6% 0.021 259.2)",
+        "tonalRamp": [
+          "#090B0E",
+          "#22252B",
+          "#3D424A",
+          "#5B626C",
+          "#7C838E",
+          "#9FA5AF",
+          "#C5C9D1",
+          "#ECEFF3"
+        ]
+      },
+      "strip-ice-2": {
+        "role": "neutral",
+        "displayName": "Strip Ice Deep",
+        "canonical": "#DCE9F7",
+        "oklch": "oklch(92.8% 0.024 250.1)",
+        "tonalRamp": [
+          "#090B0E",
+          "#21262B",
+          "#3B434B",
+          "#58626D",
+          "#79848F",
+          "#9DA6AF",
+          "#C3CAD1",
+          "#EBEFF4"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Rule",
+        "canonical": "#BFD1EA",
+        "oklch": "oklch(85.5% 0.040 256.6)",
+        "tonalRamp": [
+          "#080B11",
+          "#1F262F",
+          "#384351",
+          "#546276",
+          "#758498",
+          "#9AA6B7",
+          "#C1CAD7",
+          "#E9EFF8"
+        ]
+      },
+      "rule-strong": {
+        "role": "neutral",
+        "displayName": "Rule Strong",
+        "canonical": "#A6BCDB",
+        "oklch": "oklch(78.9% 0.050 257.0)",
+        "tonalRamp": [
+          "#070B12",
+          "#1D2632",
+          "#364355",
+          "#51627B",
+          "#71849E",
+          "#97A6BC",
+          "#BECADB",
+          "#E7EFFA"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#0A1430",
+        "oklch": "oklch(20.1% 0.058 266.5)",
+        "tonalRamp": [
+          "#080B13",
+          "#1E2534",
+          "#384258",
+          "#54617F",
+          "#7482A2",
+          "#99A5C0",
+          "#C0C9DE",
+          "#E8EFFC"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Ink Secondary",
+        "canonical": "#26324F",
+        "oklch": "oklch(32.1% 0.055 266.3)",
+        "tonalRamp": [
+          "#080B13",
+          "#1F2533",
+          "#384257",
+          "#54617E",
+          "#7582A1",
+          "#9AA5BE",
+          "#C0C9DC",
+          "#E9EFFB"
+        ]
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "Ink Muted",
+        "canonical": "#4F5D7C",
+        "oklch": "oklch(47.9% 0.053 265.6)",
+        "tonalRamp": [
+          "#080B13",
+          "#1F2533",
+          "#384257",
+          "#54617D",
+          "#7582A0",
+          "#9AA5BE",
+          "#C0C9DC",
+          "#E9EFFB"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Home hero headline only; B612 700 mixed case."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section h2 in the section head."
+      },
+      "page-title": {
+        "displayName": "Page Title",
+        "purpose": "Inner-page scope hero titles."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Strip titles, ruled-grid cell titles, buttons, nav links."
+      },
+      "subhead": {
+        "displayName": "Subhead",
+        "purpose": "Plain h3/h4 inside prose."
+      },
+      "lead": {
+        "displayName": "Lead",
+        "purpose": "Section and hero ledes, max 62ch."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "All reading text; 16px under 760px; tabular figures."
+      },
+      "label": {
+        "displayName": "Engraved Cap",
+        "purpose": "Uppercase caps labelling cells, controls, table heads and readout units; never above a heading."
+      },
+      "data": {
+        "displayName": "Data",
+        "purpose": "IBM Plex Mono for code, ids, model names, crumbs and strip code cells; never sentences."
+      },
+      "readout": {
+        "displayName": "Readout",
+        "purpose": "B612 Mono for canvas data blocks and large fixed-place readouts only."
+      }
+    },
+    "shadows": [
+      {
+        "name": "hairline-inset",
+        "value": "inset 0 0 0 1px var(--rule-2)",
+        "purpose": "Outlined badges, status tags and focused filter fields; a 1px rule, never a lift."
+      }
+    ],
+    "atmosphere": [
+      {
+        "name": "scope-range-grid",
+        "value": "radial-gradient(60% 70% at 72% 42%, rgba(29, 78, 216, 0.16), transparent 70%), linear-gradient(var(--scope-line) 1px, transparent 1px) -1px -1px / 96px 96px, linear-gradient(90deg, var(--scope-line) 1px, transparent 1px) -1px -1px / 96px 96px, var(--scope-1)",
+        "purpose": "Scope heroes only (home, page hero, doc pages, 404)."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "All state transitions, 0.18s on background, colour and border."
+      },
+      {
+        "name": "strip-print",
+        "value": "print .7s var(--ease-out) both",
+        "purpose": "Strips printing into the home strip bay."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "animation and transition durations 0.001ms",
+        "purpose": "Sweep stops and targets render static under prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "desktop-collapse",
+        "value": "1080px"
+      },
+      {
+        "name": "evidence-collapse",
+        "value": "860px"
+      },
+      {
+        "name": "mobile",
+        "value": "760px"
+      },
+      {
+        "name": "small",
+        "value": "640px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one filled action: Talk to us.",
+      "html": "<a class=\"ds-btn ds-btn-primary\" href=\"#\">Talk to us</a>",
+      "css": ".ds-btn { display:inline-flex; align-items:center; justify-content:center; gap:10px; min-height:46px; padding:11px 20px; border:1px solid transparent; border-radius:0; font-family: var(--display); font-weight: 700; font-size:0.98rem; letter-spacing:0.01em; line-height:1; text-decoration:none; cursor:pointer; transition: background-color .18s cubic-bezier(0.16,1,0.3,1), color .18s cubic-bezier(0.16,1,0.3,1), border-color .18s cubic-bezier(0.16,1,0.3,1); } .ds-btn-primary { background: var(--blue, #1D4ED8); color:#fff; } .ds-btn-primary:hover { background: var(--blue-hi, #3E6CF2); } .ds-btn:focus-visible { outline:2px solid var(--blue, #1D4ED8); outline-offset:2px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Hairline-outlined secondary action on paper.",
+      "html": "<a class=\"ds-btn2\" href=\"#\">Read the architecture</a>",
+      "css": ".ds-btn2 { display:inline-flex; align-items:center; min-height:46px; padding:11px 20px; background:transparent; color: var(--ink, #0A1430); border:1px solid var(--rule-2, #A6BCDB); border-radius:0; font-family: var(--display); font-weight: 700; font-size:0.98rem; line-height:1; text-decoration:none; transition: border-color .18s cubic-bezier(0.16,1,0.3,1); } .ds-btn2:hover { border-color: var(--ink, #0A1430); } .ds-btn2:focus-visible { outline:2px solid var(--blue, #1D4ED8); outline-offset:2px; }"
+    },
+    {
+      "name": "Flight Strip",
+      "kind": "custom",
+      "refersTo": "strip",
+      "description": "The universal row: a code cell plus ruled cells, stacked 6px apart in a bay; amber code cell only for holds.",
+      "html": "<ul class=\"ds-bay\"><li class=\"ds-strip\"><span class=\"ds-code\">ACM<br>0412</span><div><p class=\"ds-strip-title\">Routed to your own model</p><p class=\"ds-strip-p\">Text stays inside the boundary; nothing is pseudonymized because nothing leaves.</p></div></li><li class=\"ds-strip\"><span class=\"ds-code ds-hold\">GLX<br>0413</span><div><p class=\"ds-strip-title\">Held at clear</p><p class=\"ds-strip-p\">Token quota reached for this tenant.</p></div></li></ul>",
+      "css": ".ds-bay { list-style:none; margin:0; padding:0; display:grid; gap:6px; } .ds-strip { display:grid; grid-template-columns:92px minmax(0,1fr); background: var(--strip, #E8F1FF); border:1px solid var(--rule, #BFD1EA); color: var(--ink, #0A1430); transition: background-color .18s cubic-bezier(0.16,1,0.3,1); } .ds-strip:hover { background:#fff; } .ds-strip > * { padding:12px 14px; min-width:0; } .ds-strip > * + * { border-left:1px solid var(--rule, #BFD1EA); } .ds-code { background: var(--blue, #1D4ED8); color:#fff; font-family: var(--mono, 'IBM Plex Mono', monospace); font-size:0.78rem; font-weight:600; } .ds-hold { background: var(--amber, #F2B544); color: var(--scope-1, #06122A); } .ds-strip-title { margin:0; font-family: var(--display); font-weight: 700; letter-spacing:-0.01em; font-size:1.25rem; line-height:1.1; } .ds-strip-p { margin:6px 0 0; color: var(--ink-2, #26324F); font-family: var(--sans, 'Atkinson Hyperlegible Next', sans-serif); font-size:0.97rem; line-height:1.6; }"
+    },
+    {
+      "name": "Key Bank",
+      "kind": "chip",
+      "refersTo": "keybank-key",
+      "description": "Square segmented control; selected key filled blue; keys share 1px borders.",
+      "html": "<div class=\"ds-keybank\" role=\"group\"><button aria-pressed=\"true\">Compose</button><button aria-pressed=\"false\">Helm</button><button aria-pressed=\"false\">Air-gap</button></div>",
+      "css": ".ds-keybank { display:inline-flex; flex-wrap:wrap; padding:1px 0 0 1px; } .ds-keybank > button { margin:-1px 0 0 -1px; background: var(--strip, #E8F1FF); border:1px solid var(--rule-2, #A6BCDB); color: var(--ink-2, #26324F); padding:10px 16px; font-family: var(--display); font-weight: 700; letter-spacing:0.08em; text-transform:uppercase; font-size:0.92rem; line-height:1.1; border-radius:0; cursor:pointer; transition: background-color .18s, color .18s; } .ds-keybank > button:hover { background:#fff; color: var(--ink, #0A1430); } .ds-keybank > button[aria-pressed='true'] { position:relative; background: var(--blue, #1D4ED8); border-color: var(--blue, #1D4ED8); color:#fff; } .ds-keybank > button:focus-visible { outline:2px solid var(--blue, #1D4ED8); outline-offset:-4px; }"
+    },
+    {
+      "name": "Status Tags",
+      "kind": "chip",
+      "refersTo": "status",
+      "description": "Built is a filled blue square, planned a hollow square; no green.",
+      "html": "<span class=\"ds-status ds-built\">Built</span> <span class=\"ds-status ds-wip\">Planned</span>",
+      "css": ".ds-status { display:inline-flex; align-items:center; gap:6px; padding:2px 8px; font-family: var(--display); font-weight: 700; letter-spacing:0.08em; text-transform:uppercase; font-size:0.74rem; white-space:nowrap; box-shadow: inset 0 0 0 1px var(--rule-2, #A6BCDB); } .ds-status::before { content:''; width:7px; height:7px; } .ds-built { color: var(--blue-deep, #102E7A); } .ds-built::before { background: var(--blue, #1D4ED8); } .ds-wip { color: var(--ink-3, #4F5D7C); } .ds-wip::before { box-shadow: inset 0 0 0 1.5px currentColor; }"
+    },
+    {
+      "name": "Readouts",
+      "kind": "custom",
+      "refersTo": "readout",
+      "description": "Fixed-place B612 Mono numerals with an engraved cap beneath, in a ruled row on the scope.",
+      "html": "<dl class=\"ds-readouts\"><div class=\"ds-ro\"><dt>In scope</dt><dd>07</dd></div><div class=\"ds-ro\"><dt>Held</dt><dd>01</dd></div><div class=\"ds-ro\"><dt>Landed</dt><dd>0412</dd></div></dl>",
+      "css": ".ds-readouts { margin:0; display:grid; grid-template-columns:repeat(3,auto); justify-content:start; background: var(--scope-1, #06122A); border-top:1px solid rgba(124,196,255,0.3); border-bottom:1px solid rgba(124,196,255,0.3); padding:0 16px; } .ds-ro { display:flex; flex-direction:column-reverse; gap:8px; padding:14px 22px 14px 0; } .ds-ro + .ds-ro { padding-left:22px; border-left:1px solid rgba(124,196,255,0.16); } .ds-ro dd { margin:0; font-family: var(--scope-mono, 'B612 Mono', monospace); font-size:2.2rem; line-height:1; letter-spacing:-0.02em; color: var(--readout, #E8F1FF); font-variant-numeric: tabular-nums slashed-zero; } .ds-ro dt { font-family: var(--display); font-weight: 700; text-transform:uppercase; letter-spacing:0.08em; font-size:0.78rem; color: var(--readout-3, #7F96BD); }"
+    },
+    {
+      "name": "Callout",
+      "kind": "card",
+      "refersTo": "callout",
+      "description": "Ruled note with a caps key cell; warn variant takes a blue key, never amber.",
+      "html": "<div class=\"ds-callout\"><span class=\"ds-callout-k\">Note</span><p>Caliban is designed to support these obligations · not certified.</p></div>",
+      "css": ".ds-callout { display:grid; grid-template-columns:auto minmax(0,1fr); background: var(--strip, #E8F1FF); border:1px solid var(--rule, #BFD1EA); font-size:0.94rem; color: var(--ink-2, #26324F); line-height:1.6; } .ds-callout > * { padding:12px 14px; margin:0; } .ds-callout-k { background: var(--strip-2, #DCE9F7); color: var(--ink, #0A1430); border-right:1px solid var(--rule, #BFD1EA); font-family: var(--display); font-weight: 700; text-transform:uppercase; letter-spacing:0.08em; font-size:0.8rem; line-height:1.9; }"
+    },
+    {
+      "name": "Navigation",
+      "kind": "nav",
+      "refersTo": "nav",
+      "description": "Sticky Scope Night bar; B612 links; active link carries a 2px Target Cyan underline.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-link ds-on\" href=\"#\">Architecture</a><a class=\"ds-nav-link\" href=\"#\">Platform</a><a class=\"ds-nav-link\" href=\"#\">Research</a><a class=\"ds-nav-link\" href=\"#\">Developers</a></nav>",
+      "css": ".ds-nav { display:flex; align-items:stretch; height:60px; background: var(--scope-0, #040B1C); border-bottom:1px solid rgba(124,196,255,0.3); padding:0 14px; } .ds-nav-link { position:relative; display:inline-flex; align-items:center; padding:0 14px; color: var(--readout-2, #A9BEDF); font-family: var(--display); font-weight: 700; font-size:1rem; letter-spacing:-0.01em; text-decoration:none; } .ds-nav-link:hover, .ds-on { color:#fff; } .ds-on::after { content:''; position:absolute; left:14px; right:14px; bottom:-1px; height:2px; background: var(--target, #7CC4FF); } .ds-nav-link:focus-visible { outline:2px solid var(--target, #7CC4FF); outline-offset:2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Sovereign Airspace",
+    "overview": "Caliban is drawn as the control tower of a company's own airspace. Every AI request is a flight: identified, screened, cleared, routed, grounded and landed on the customer's runway. The system lifts its grammar from en-route air traffic control (the radar scope, leader-lined data blocks, paper flight-progress strips in a ruled bay) and keeps the words Caliban's own. ATC supplies the grammar, not the vocabulary: requests, routes and tenants are never called flights in copy.\n\nTwo materials alternate. **Scope** is the dark instrument surface (blue-black with a 96px range grid and a faint blue bloom) for signature, interactive and hero sections. **Strip paper** is the light ice-blue reading surface for long explanation. Both are built from the same parts: square corners, 1px rules, one owned blue, and fixed-place numerals. The density is high, but every cell is ruled, so the eye reads in rows rather than in floating cards.\n\nRejected by the build and by the brand page: the SaaS template (centred hero, chip rows, logo strip, icon-tile card grid, dark hero-metric band), gradient text, and eyebrow labels over headings.",
+    "keyCharacteristics": [
+      "Flight-progress strips (a code cell plus ruled cells) are the universal row.",
+      "One chromatic ink (Caliban blue); amber appears only for holds and denials.",
+      "Square corners everywhere; 1px hairlines are the only structure.",
+      "Numbers are fixed-place readouts with engraved caps under them, never floating marketing stats.",
+      "Evidence arrives as source-ticketed strips with visible caveats."
+    ],
+    "rules": [
+      {
+        "name": "The One Ink Rule",
+        "body": "Caliban Blue is the only chromatic ink. There is no green and no second accent. Status \"built\" is a filled blue square and \"planned\" is a hollow square outlined in the current colour.",
+        "section": "colors"
+      },
+      {
+        "name": "The Amber Means Stopped Rule",
+        "body": "Amber marks holds and denials only. Estimates, caveats and emphasis never use it: estimates take a blue outlined badge, and warning callouts take a blue key cell.",
+        "section": "colors"
+      },
+      {
+        "name": "The Cyan Stays On The Scope Rule",
+        "body": "Target Cyan belongs to dark surfaces. On paper, the same job falls to Caliban Blue.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Monos Rule",
+        "body": "IBM Plex Mono sets code and inline data everywhere, because B612 Mono's square parentheses misread in code. B612 Mono is used only for the canvas data blocks and the large readouts.",
+        "section": "typography"
+      },
+      {
+        "name": "The Sentences Are Sans Rule",
+        "body": "Mono never sets a sentence. Notes, captions and disclaimers are set in Atkinson Next, even inside strips.",
+        "section": "typography"
+      },
+      {
+        "name": "The Engraved Cap Rule",
+        "body": "Uppercase B612 caps label a control, a cell or a number. They never sit above a heading as an eyebrow.",
+        "section": "typography"
+      },
+      {
+        "name": "The No Lift Rule",
+        "body": "Nothing floats. A panel is separated by a rule or a change of surface, never by a drop shadow.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Range Grid Rule",
+        "body": "The 96px grid and the blue bloom belong to scope heroes (home, inner page heroes, doc pages, 404). Paper sections stay plain.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** build rows as flight strips: a code cell plus ruled cells, stacked 6px apart in a bay.",
+      "**Do** keep Caliban Blue (#1D4ED8) as the only chromatic ink; use a filled blue square for built and a hollow square for planned.",
+      "**Do** reserve Hold Amber (#F2B544) for holds and denials.",
+      "**Do** set display in B612 700 mixed case, reading in Atkinson Hyperlegible Next, code and data in IBM Plex Mono, and the scope and readouts in B612 Mono.",
+      "**Do** keep every corner square and every rule 1px.",
+      "**Do** show evidence as source-ticketed strips with their caveats visible, and word compliance as \"designed to support · not certified\".",
+      "**Do** set numbers as fixed-place readouts with an engraved cap beneath."
+    ],
+    "donts": [
+      "**Don't** put an eyebrow or kicker label above a heading; the heading speaks first.",
+      "**Don't** number sections decoratively; use numbers only where the sequence carries information (stage order, note ids, install steps).",
+      "**Don't** use icon-tile card grids, chip rows, logo strips or a hero-metric band.",
+      "**Don't** use gradient text, or any green or second accent hue.",
+      "**Don't** set sentences in a monospace face.",
+      "**Don't** use amber for estimates, caveats or emphasis.",
+      "**Don't** lift anything with a drop shadow; separate by rule or surface."
+    ]
+  }
+}

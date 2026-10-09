@@ -1,0 +1,59 @@
+---
+import Scope from './Scope.astro';
+import { CONTACT_HREF } from '../../config';
+---
+<section class="hero scope" aria-labelledby="hero-title">
+  <div class="container hero-grid">
+    <div class="console">
+      <h1 id="hero-title" class="hero-title">Bring the models to your&nbsp;data.</h1>
+      <p class="hero-lead">
+        Caliban is the single AI endpoint for your company. Every request is identified, routed to the right model,
+        stripped of personal data before it leaves your boundary, grounded in your own ontology, and answered on hardware you control.
+      </p>
+      <div class="hero-actions">
+        <a href={CONTACT_HREF} class="btn btn-primary btn-lg">Talk to us</a>
+        <a href="/architecture/" class="btn btn-secondary btn-lg">Read the architecture</a>
+      </div>
+      <dl class="readouts" aria-label="Live readouts from the simulation on this page">
+        <div class="readout"><dt><span>In scope</span></dt><dd><b data-readout="scope">00</b></dd></div>
+        <div class="readout"><dt><span>Held</span></dt><dd><b data-readout="held">00</b></dd></div>
+        <div class="readout"><dt><span>PII screened</span></dt><dd><b data-readout="pii">00</b></dd></div>
+        <div class="readout"><dt><span>Landed</span></dt><dd><b data-readout="landed">0000</b></dd></div>
+      </dl>
+      <p class="console-foot">BYOK only. Zero egress. OpenAI- and Anthropic-compatible. One Rust binary.</p>
+    </div>
+    <Scope />
+  </div>
+</section>
+
+<style>
+  .hero { position: relative; padding: 56px 0 64px; overflow: hidden; border-bottom: 1px solid var(--scope-line-2);
+    background:
+      radial-gradient(60% 70% at 72% 42%, rgba(29, 78, 216, 0.16), transparent 70%),
+      linear-gradient(var(--scope-line) 1px, transparent 1px) -1px -1px / 96px 96px,
+      linear-gradient(90deg, var(--scope-line) 1px, transparent 1px) -1px -1px / 96px 96px,
+      var(--scope-1); }
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); grid-template-areas: 'console scope' 'bay bay'; column-gap: 48px; row-gap: 20px; align-items: center; }
+  .console { grid-area: console; display: grid; align-content: center; gap: 28px; padding-block: 12px; }
+  .hero-title { font-family: var(--display); font-weight: 700; font-size: clamp(3rem, 5.6vw, 5rem); line-height: 1.0; letter-spacing: -0.025em; color: var(--readout); }
+  .hero-lead { font-size: clamp(1.08rem, 1.4vw, 1.22rem); color: var(--readout-2); line-height: 1.55; max-width: 48ch; }
+  .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+  .readouts { margin: 4px 0 0; display: grid; grid-template-columns: repeat(4, minmax(0, auto)); justify-content: start; gap: 0; border-top: 1px solid var(--scope-line-2); border-bottom: 1px solid var(--scope-line-2); }
+  .readouts .readout { padding: 14px 22px 14px 0; display: flex; flex-direction: column-reverse; gap: 8px; }
+  .readouts .readout + .readout { padding-left: 22px; border-left: 1px solid var(--scope-line); }
+  .readouts dt, .readouts dd { margin: 0; }
+  .readouts dt span { white-space: nowrap; }
+  .readouts b { font-size: clamp(1.6rem, 2.4vw, 2.2rem); }
+  .console-foot { color: var(--readout-3); font-size: 0.95rem; text-wrap: balance; }
+
+  @media (max-width: 1080px) {
+    .hero-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'console' 'scope' 'bay'; }
+    .console { gap: 22px; }
+  }
+  @media (max-width: 640px) {
+    .hero { padding: 36px 0 44px; }
+    .readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .readouts .readout + .readout:nth-child(3) { padding-left: 0; border-left: 0; }
+    .readouts .readout:nth-child(n+3) { border-top: 1px solid var(--scope-line); }
+  }
+</style>

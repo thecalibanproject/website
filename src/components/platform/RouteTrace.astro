@@ -1,0 +1,90 @@
+---
+// Routing decision trace for one request, set as a scope instrument: each stage is a ruled row
+// with its stage id in a code cell; the pick is filled blue. Values mirror core's config examples.
+const steps = [
+  { stage: 'AUTH', text: 'tenant acme · key cal_…' },
+  { stage: 'POLICY', text: 'pii_mode reversible · egress deny_by_default' },
+  { stage: 'QUOTA', text: 'reserve prompt estimate + max_tokens' },
+  { stage: 'PII', text: '3 entities → surrogates' },
+  { stage: 'CACHE', text: 'T1 exact → miss', quiet: true },
+  { stage: 'CLASSIFY', text: 'intent = analytics' },
+  { stage: 'ROUTE', text: 'candidates for “analytics”', list: ['local/qwen3.8-27b', 'local/gpt-oss-20b', 'local/qwen3.6-35b-a3b', 'local/qwen3.5-9b'] },
+  { stage: 'PICK', text: 'local/qwen3.8-27b · t0_sovereign · pool vllm-qwen3-large · cache_salt', pick: true },
+];
+const headers = [
+  ['x-caliban-routed-model', 'local/qwen3.8-27b'],
+  ['x-caliban-cache', 'miss'],
+  ['x-caliban-pii-entities', '3'],
+  ['x-caliban-request-id', 'req_…'],
+];
+---
+<figure class="rt" aria-label="Mock of a routing decision trace for one request">
+  <div class="rt-head">
+    <span class="cap">Request trace</span>
+    <p class="datum rt-req"><b>POST</b> /v1/chat/completions <span class="rt-model">caliban/auto</span></p>
+    <span class="cap rt-stream">stream</span>
+  </div>
+  <ol class="rt-rows">
+    {steps.map((s) => (
+      <li class:list={['rt-row', { pick: s.pick, quiet: s.quiet }]}>
+        <span class="rt-k">{s.stage}</span>
+        <span class="rt-v">
+          <span class="datum">{s.text}</span>
+          {s.list && (
+            <ol class="rt-cands">
+              {s.list.map((m, i) => <li class:list={{ first: i === 0 }}><span class="rt-n">{i + 1}</span><span class="datum">{m}</span></li>)}
+            </ol>
+          )}
+        </span>
+      </li>
+    ))}
+  </ol>
+  <div class="rt-hdrs">
+    <p class="cap">Response headers</p>
+    <dl>
+      {headers.map(([k, v]) => <div><dt class="datum">{k}</dt><dd class="datum">{v}</dd></div>)}
+    </dl>
+  </div>
+  <figcaption class="rt-foot">Candidates come from the tenant’s route for the intent; a candidate whose pool is not running is skipped. <code>x-caliban-cost-usd</code> is sent on non-streaming responses only.</figcaption>
+</figure>
+
+<style>
+  .rt { margin: 0; color: var(--readout); }
+  .rt-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding-bottom: 12px; border-bottom: 1px solid var(--scope-line-2); }
+  .rt-head > .cap { color: var(--readout-3); }
+  .rt-req { color: var(--readout-2); font-size: 0.74rem; min-width: 0; overflow-wrap: anywhere; }
+  .rt-req b { color: var(--target); font-weight: 600; margin-right: 4px; }
+  .rt-model { margin-left: 6px; padding: 1px 6px; border: 1px solid var(--scope-line-2); color: var(--readout); }
+  .rt-stream { color: var(--readout-2) !important; border: 1px solid var(--scope-line-2); padding: 2px 6px; font-size: 0.7rem; }
+  .rt-rows { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 3px; }
+  .rt-row { display: grid; grid-template-columns: 84px minmax(0, 1fr); border: 1px solid var(--scope-line); background: var(--scope-2); }
+  .rt-k { background: var(--scope-3); color: var(--readout-2); font-family: var(--mono); font-weight: 600; font-size: 0.66rem; letter-spacing: 0.02em; padding: 7px 9px; }
+  .rt-v { padding: 6px 10px; border-left: 1px solid var(--scope-line); min-width: 0; }
+  .rt-v > .datum { font-size: 0.72rem; color: var(--readout); overflow-wrap: anywhere; }
+  .rt-row.quiet .rt-v > .datum { color: var(--readout-3); }
+  .rt-row.pick { border-color: var(--blue); }
+  .rt-row.pick .rt-k { background: var(--blue); color: #fff; }
+  .rt-row.pick .rt-v > .datum { color: #fff; font-weight: 600; }
+  .rt-cands { list-style: none; margin: 6px 0 2px; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; }
+  .rt-cands li { display: grid; grid-template-columns: 20px minmax(0, 1fr); border: 1px solid var(--scope-line); }
+  .rt-cands .rt-n { font-family: var(--mono); font-size: 0.64rem; display: grid; place-items: center; background: var(--scope-3); color: var(--readout-3); }
+  .rt-cands .datum { font-size: 0.66rem; padding: 3px 6px; color: var(--readout-2); overflow-wrap: anywhere; }
+  .rt-cands li.first { border-color: var(--target); }
+  .rt-cands li.first .rt-n { background: var(--target); color: var(--scope-1); }
+  .rt-cands li.first .datum { color: var(--readout); }
+  .rt-hdrs { margin-top: 12px; border: 1px solid var(--scope-line-2); background: var(--scope-0); padding: 10px 12px; }
+  .rt-hdrs .cap { color: var(--readout-3); font-size: 0.72rem; margin-bottom: 6px; }
+  .rt-hdrs dl { margin: 0; }
+  .rt-hdrs dl > div { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 10px; padding: 3px 0; border-top: 1px solid var(--scope-line); }
+  .rt-hdrs dt { color: var(--target); font-size: 0.68rem; overflow-wrap: anywhere; }
+  .rt-hdrs dd { margin: 0; color: var(--readout); font-size: 0.68rem; overflow-wrap: anywhere; }
+  .rt-foot { margin-top: 10px; color: var(--readout-3); font-size: 0.82rem; line-height: 1.5; }
+  .rt-foot code { font-size: 0.86em; }
+  @media (max-width: 640px) {
+    .rt-head { grid-template-columns: minmax(0, 1fr) auto; }
+    .rt-head > .cap:first-child { grid-column: 1 / -1; }
+    .rt-row { grid-template-columns: 70px minmax(0, 1fr); }
+    .rt-cands { grid-template-columns: minmax(0, 1fr); }
+    .rt-hdrs dl > div { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  }
+</style>

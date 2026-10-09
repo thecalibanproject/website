@@ -1,0 +1,278 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import EvidenceGrid from '../../components/EvidenceGrid.astro';
+import CodeTabs from '../../components/CodeTabs.astro';
+import StatusTable from '../../components/StatusTable.astro';
+import NoteLinks from '../../components/NoteLinks.astro';
+import Close from '../../components/air/Close.astro';
+import { TIERS } from '../../data/hardware';
+import { OPEN_MODELS_TOML, VLLM_RECIPE, ENABLE_THINKING } from '../../data/samples';
+import { crates } from '../../data/status';
+
+const facts = [
+  {
+    value: 'Apache-2.0', label: 'The licence of every current Qwen line that matters for a gateway',
+    detail: 'Qwen3.5 (0.8B–397B), Qwen3.6 (27B dense, 35B-A3B MoE) and Qwen3.8-27B, plus Qwen3-Embedding and Qwen3-Reranker.',
+    sources: [{ label: 'Qwen on Hugging Face', href: 'https://huggingface.co/Qwen' }],
+  },
+  {
+    value: '262k tokens', label: 'Native context of Qwen3.5, 3.6 and 3.8',
+    detail: 'Hybrid attention: three Gated DeltaNet layers per full-attention layer, so only a quarter of the layers hold a per-token KV cache.',
+    sources: [{ label: 'Qwen3.8-27B card', href: 'https://huggingface.co/Qwen/Qwen3.8-27B' }],
+  },
+  {
+    value: '20 KiB', label: 'KV cache per token for Qwen3.6-35B-A3B (BF16)',
+    detail: 'vs 144 KiB for 2025’s dense Qwen3-8B. With 3B active parameters it is the best fit for CPU-only sites.',
+    caveat: 'Computed from each model’s config.json; VRAM figures on this page are estimates.',
+    sources: [{ label: 'Qwen3.6-35B-A3B', href: 'https://huggingface.co/Qwen/Qwen3.6-35B-A3B' }],
+  },
+  {
+    value: 'reasoning', label: 'The field vLLM v0.30.0 now returns reasoning in',
+    detail: 'Renamed from reasoning_content, which SGLang and llama.cpp still use. Caliban reads either and emits one canonical field.',
+    sources: [{ label: 'vLLM reasoning docs', href: 'https://github.com/vllm-project/vllm/blob/v0.30.0/docs/features/reasoning_outputs.md' }],
+  },
+  {
+    label: 'Qwen3.5 and later dropped the /think prompt soft switch',
+    detail: 'Thinking is controlled only through chat_template_kwargs.enable_thinking; Qwen3.8 adds reasoning_effort.',
+    sources: [{ label: 'Qwen3.6 card', href: 'https://huggingface.co/Qwen/Qwen3.6-35B-A3B' }],
+  },
+  {
+    value: '128 chars', label: 'vLLM’s limit for the per-tenant cache_salt',
+    detail: 'It also rejects /, @, \\ and NUL, so the salt is base64url, not base64. SGLang supports the same isolation.',
+    sources: [{ label: 'Research note 09', href: '/research/09-open-models-on-prem/' }],
+  },
+];
+
+const permissive = ['Qwen3.5 / 3.6 / 3.8-27B', 'Qwen3-Embedding / Reranker', 'gpt-oss-20b / 120b', 'Gemma 4', 'DeepSeek V3.2 / V4 (MIT)', 'Most of GLM (MIT)', 'IBM Granite 4.x', 'Phi-4 (MIT)', 'Mistral Small / Ministral / Devstral Small', 'bge-reranker-v2-m3'];
+const flagged = [
+  ['Qwen3.8-Flash-Next, Qwen3.8-2.4T', 'Custom Qwen licences with “Model as a Service” clauses'],
+  ['Mistral Medium 3.5, Devstral 2 123B', '“Modified MIT” with a revenue cap'],
+  ['MiniMax M2.7', 'Non-commercial'],
+  ['MiniMax M3, Kimi K3, GLM-5.3', 'Custom terms; legal review'],
+  ['Llama 4', 'Excludes EU-domiciled entities from the multimodal grant; blocked by default for EU tenants'],
+  ['Gemma 3, EmbeddingGemma', 'Gemma terms'],
+  ['Jina v5 embedder, Jina v3 reranker', 'CC-BY-NC'],
+];
+
+const parsers = [
+  ['Qwen3.5 / 3.6 / 3.8', 'qwen3_coder', 'qwen3', 'enable_thinking (3.8: + reasoning_effort)'],
+  ['gpt-oss', 'openai', 'built-in harmony handling', 'reasoning_effort low / medium / high'],
+  ['Mistral Small 4, Ministral 3, Devstral', 'mistral', 'mistral', 'reasoning_effort none / high'],
+  ['DeepSeek-V4 / V4.1', 'deepseek_v4 / deepseek_v41', 'deepseek_v4 / deepseek_v41', 'reasoning_effort'],
+  ['Gemma 4', 'gemma4', 'gemma4', 'enable_thinking (off by default)'],
+  ['GLM-4.5 to 5.x', 'glm45, glm47', 'glm45', 'enable_thinking'],
+];
+
+const helmPool = `# deploy/helm/caliban/values-airgap.yaml
+modelPools:
+  defaults:
+    weights:
+      existingClaim: caliban-models
+  pools:
+    - name: qwen3-large
+      enabled: true
+      args:
+        - /models/qwen3.8-27b-fp8
+        - --served-model-name=Qwen/Qwen3.8-27B-FP8
+        - --max-model-len=262144
+        - --gpu-memory-utilization=0.90
+        - --reasoning-parser=qwen3
+        - --enable-auto-tool-choice
+        - --tool-call-parser=qwen3_coder`;
+---
+<Base title="Open models" description="Qwen, gpt-oss and other open-weight models on your own GPUs or CPUs: licences, tool and reasoning parsers, KV-cache maths and a recommended model per hardware tier.">
+  <PageHero
+    crumbs={[{ label: 'Platform' }, { label: 'Open models' }]}
+    title="Qwen, gpt-oss and friends on your GPUs or CPUs"
+    lead="Caliban does not build an inference engine. It routes to vLLM, SGLang, llama.cpp, Ollama and TEI pools you run, knows how each model family switches reasoning and calls tools, and ships only Apache-2.0 and MIT weights in its default bundle."
+  >
+    <Fragment slot="actions">
+      <a class="btn btn-primary" href="#tiers">Find your tier</a>
+      <a class="btn btn-secondary" href="/research/09-open-models-on-prem/">Read research note 09</a>
+    </Fragment>
+    <div slot="visual" class="ladder" role="img" aria-label="Recommended chat model per hardware tier, from CPU-only to eight 80 GB GPUs.">
+      <p class="ld-label cap">Recommended chat model per tier</p>
+      <ol class="ld">
+        {[...TIERS].reverse().map((t, i) => (
+          <li class:list={{ top: i === 0 }}>
+            <span class="ld-tier">{t.label}</span>
+            <span class="ld-model">{t.chat.replace(/\s*\(.*\)$/, '')}</span>
+          </li>
+        ))}
+      </ol>
+      <p class="ld-note">From research note 09 §4.3 and the deploy repo. Memory figures are estimates; benchmark per site.</p>
+    </div>
+  </PageHero>
+
+  <EvidenceGrid
+    id="facts"
+    title="Qwen is the best-covered open family for an on-prem gateway"
+    lead="Every model id, licence and context length was read from the Hugging Face API or the model card on 2026-10-02, and engine flags from the source at release tags."
+    items={facts}
+    code="FX"
+    valueKey="Value"
+    note="Facts from model cards, licences and engine source at the versions listed in research note 09 (vLLM v0.30.0, SGLang v0.5.21, llama.cpp b11346, Ollama v0.35.0, TEI v1.9.4). They are not Caliban benchmarks."
+    notes={[{ label: 'note 09', href: '/research/09-open-models-on-prem/' }]}
+  />
+
+  <section class="section paper" id="tiers" aria-labelledby="tiers-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="tiers-title">A recommended chat, embedding and reranker model for each tier</h2>
+        <p>Estimates that assume the vLLM memory fractions in the deploy repo, about 1.5 GB per engine for CUDA graphs and activations, and BF16 KV unless noted. One embedder per deployment: its dimension is baked into the Qdrant collections.</p>
+      </div>
+      <ol class="tstrips">
+        {TIERS.map((t) => (
+          <li class="tstrip">
+            <div class="ts-k">
+              <h3>{t.label}</h3>
+              <p>{t.hardware}</p>
+            </div>
+            <dl class="ts-facts">
+              <div class="ts-chat"><dt class="cap">Chat</dt><dd><strong>{t.chat}</strong>{t.chatAlt && <span class="ts-alt">or {t.chatAlt}</span>}</dd></div>
+              <div><dt class="cap">Engine</dt><dd>{t.engine}</dd></div>
+              <div><dt class="cap">Embedding</dt><dd>{t.embedding}</dd></div>
+              <div><dt class="cap">Reranker</dt><dd>{t.reranker}</dd></div>
+              <div><dt class="cap">Memory <span class="badge badge-target">Estimate</span></dt><dd>{t.memory}</dd></div>
+              <div><dt class="cap">{t.via === 'helm' ? 'Helm' : 'Compose'}</dt><dd class="ts-run">{t.profiles.map((p) => <code>{p}</code>)}</dd></div>
+            </dl>
+          </li>
+        ))}
+      </ol>
+      <p class="fine">Full table with compose profiles and the air-gap bundle: <a href="/deployment/#hardware">deployment</a>.</p>
+    </div>
+  </section>
+
+  <section class="section scope" aria-labelledby="cfg-title">
+    <div class="container split split-wide">
+      <div>
+        <h2 id="cfg-title" class="sec-title">A provider per pool, a model entry per capability</h2>
+        <div class="rich">
+          <p>Each pool is a deployment-wide <code>[[providers]]</code> entry. Its <code>[[models]]</code> entry says what the model can do: tools, vision, how reasoning is switched and the served context. Tenant routes then decide which intent goes where.</p>
+          <p>Caliban maps a request’s reasoning preference to what the family understands (<code>enable_thinking</code> for Qwen, <code>reasoning_effort</code> for gpt-oss), moves inline <code>&lt;think&gt;</code> tags into a separate field, and adds a per-tenant <code>cache_salt</code> for vLLM and SGLang pools.</p>
+        </div>
+        <ul class="checks mt">
+          <li><strong>The full catalogue</strong> with every repo id and licence verified is <code>core/config/open-models.example.toml</code>.</li>
+          <li><strong>Adding a model:</strong> check the licence, pin it in <code>models.lock.yaml</code>, serve it with the right parsers, declare it, restart and smoke-test.</li>
+        </ul>
+      </div>
+      <CodeTabs id="om-tabs" maxHeight={620} tabs={[
+        { label: 'open-models.example.toml', code: OPEN_MODELS_TOML, lang: 'toml' },
+        { label: 'vLLM recipe', code: VLLM_RECIPE, lang: 'bash' },
+        { label: 'Thinking off (request)', code: ENABLE_THINKING, lang: 'json' },
+        { label: 'Helm modelPools', code: helmPool, lang: 'yaml' },
+      ]} caption="Excerpts from core/config, research note 09 §3 and §5, and deploy/helm." />
+    </div>
+  </section>
+
+  <section class="section paper" aria-labelledby="parsers-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="parsers-title">The right parser flags for each family</h2>
+        <p>Verified against the vLLM v0.30.0 parser registries. Tool calling in vLLM always needs <code>--enable-auto-tool-choice</code> together with <code>--tool-call-parser</code>.</p>
+      </div>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Engine flags per model family">
+        <table>
+          <thead><tr><th scope="col">Family</th><th scope="col">vLLM --tool-call-parser</th><th scope="col">vLLM --reasoning-parser</th><th scope="col">Per-request control</th></tr></thead>
+          <tbody>{parsers.map((r) => <tr><td>{r[0]}</td><td><code>{r[1]}</code></td><td>{r[2].includes('built-in') ? r[2] : <code>{r[2]}</code>}</td><td>{r[3]}</td></tr>)}</tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="section paper lic-sec" aria-labelledby="lic-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="lic-title">Apache-2.0 and MIT only, unless legal says otherwise</h2>
+        <p>The bundle tool refuses any other licence unless <code>--allow-licence</code> is passed after a legal review for the specific customer. The licence check runs before any download starts.</p>
+      </div>
+      <div class="lic">
+        <div class="lic-col">
+          <h3 class="lic-h"><span class="lic-k">ALLOW</span><span>Permissive</span></h3>
+          <ul class="perm">{permissive.map((p) => <li>{p}</li>)}</ul>
+          <p class="lic-note">Candidates for <code>--allow-licence</code> after review: Nemotron 3.5 (OpenMDW-1.1).</p>
+        </div>
+        <div class="lic-col">
+          <h3 class="lic-h"><span class="lic-k deny">DENY</span><span>Flagged: out of the default bundle</span></h3>
+          <ul class="flag">{flagged.map(([m, why]) => <li><strong>{m}</strong><span>{why}</span></li>)}</ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-tight paper status-sec" aria-labelledby="status-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="status-title" class="head-sm">What is built in core today</h2>
+        <p>OpenAI-compatible providers cover vLLM, SGLang, llama.cpp and Ollama. Model discovery in the console is designed; today a provider can be probed and its models suggested through the admin API.</p>
+      </div>
+      <StatusTable rows={crates('caliban-providers', 'caliban-gateway')} />
+    </div>
+  </section>
+
+  <NoteLinks slugs={['09-open-models-on-prem', '07-gateway-serving-and-sovereign-deployment']} platform="/platform/open-models/" />
+  <Close />
+</Base>
+
+<style>
+  .mt { margin-top: 24px; }
+  .fine { margin-top: 14px; color: var(--ink-3); font-size: 0.86rem; }
+  .sec-title { font-size: clamp(1.7rem, 3.2vw, 2.6rem); }
+  .rich { margin-top: 18px; }
+  .lic-sec, .status-sec { border-top: 1px solid var(--rule); }
+
+  /* Hero: the tier ladder as assign-strips. */
+  .ld-label { color: var(--readout-3); }
+  .ld { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 4px; }
+  .ld li { display: grid; grid-template-columns: 112px minmax(0, 1fr); background: var(--scope-1); border: 1px solid var(--scope-line-2); }
+  .ld li > span { padding: 10px 12px; min-width: 0; }
+  .ld-tier { background: var(--scope-3); color: var(--readout); font-family: var(--mono); font-weight: 600; font-size: 0.72rem; white-space: nowrap; border-right: 1px solid var(--scope-line-2); }
+  .ld li.top .ld-tier { background: var(--blue); color: #fff; }
+  .ld-model { color: var(--readout); font-family: var(--mono); font-size: 0.74rem; overflow-wrap: anywhere; }
+  .ld-note { margin-top: 12px; font-size: 0.84rem; color: var(--readout-3); }
+
+  /* Hardware tiers as strips. */
+  .tstrips { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .tstrip { display: grid; grid-template-columns: 220px minmax(0, 1fr); background: var(--strip); border: 1px solid var(--rule); }
+  .ts-k { background: var(--blue); color: #fff; padding: 16px 18px; }
+  .ts-k h3 { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; font-size: 1.6rem; line-height: 1; color: #fff; }
+  .ts-k p { margin-top: 8px; font-size: 0.88rem; line-height: 1.4; color: var(--strip); }
+  .ts-facts { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--rule); }
+  .ts-facts > div { background: var(--strip); padding: 12px 16px; min-width: 0; }
+  .ts-facts dt { color: var(--ink-3); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ts-facts dd { margin: 4px 0 0; font-size: 0.92rem; color: var(--ink-2); line-height: 1.5; }
+  .ts-facts dd strong { color: var(--ink); font-weight: 600; }
+  .ts-alt { display: block; color: var(--ink-3); font-size: 0.86rem; }
+  .ts-run { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  /* Licences. */
+  .lic { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 24px; align-items: start; }
+  .lic-col { background: var(--strip); border: 1px solid var(--rule); }
+  .lic-h { display: grid; grid-template-columns: 72px minmax(0, 1fr); font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; font-size: 1.2rem; line-height: 1.15; border-bottom: 1px solid var(--rule); }
+  .lic-h > span { padding: 12px 14px; }
+  .lic-k { background: var(--blue); color: #fff; font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0; display: flex; align-items: center; }
+  .lic-k.deny { background: var(--amber); color: var(--scope-1); }
+  .perm { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--rule); border-bottom: 1px solid var(--rule); }
+  .perm li { background: var(--strip); padding: 9px 14px; font-size: 0.92rem; color: var(--ink); }
+  .lic-note { padding: 12px 14px; color: var(--ink-3); font-size: 0.88rem; }
+  .flag { list-style: none; margin: 0; padding: 0; }
+  .flag li { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); border-bottom: 1px solid var(--rule); font-size: 0.92rem; }
+  .flag li > * { padding: 10px 14px; }
+  .flag li:last-child { border-bottom: 0; }
+  .flag strong { color: var(--ink); font-weight: 600; }
+  .flag span { color: var(--ink-2); border-left: 1px solid var(--rule); }
+
+  @media (max-width: 1080px) {
+    .tstrip { grid-template-columns: minmax(0, 1fr); }
+    .ts-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .lic { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .ts-facts { grid-template-columns: minmax(0, 1fr); }
+    .ld li { grid-template-columns: 92px minmax(0, 1fr); }
+    .perm { grid-template-columns: minmax(0, 1fr); }
+    .flag li { grid-template-columns: minmax(0, 1fr); }
+    .flag li > span { border-left: 0; padding-top: 0; }
+  }
+</style>

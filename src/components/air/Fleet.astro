@@ -1,0 +1,201 @@
+---
+import { SHAPES, TIERS, commandFor } from '../../data/hardware';
+
+interface Props { title?: string; lead?: string }
+const {
+  title = 'Run every model on your own hardware.',
+  lead = 'Open-weight models are first-class: Qwen, gpt-oss and their embedders and rerankers, served by vLLM, SGLang, TEI or llama.cpp. Pick where Caliban runs and what hardware you have; the stack comes from the open-models research note and the deploy repo.',
+} = Astro.props;
+
+const commands: Record<string, { kind: string; lines: string[] }> = {};
+for (const s of SHAPES) for (const t of TIERS) commands[`${s.id}:${t.id}`] = commandFor(s.id, t);
+const payload = JSON.stringify({ shapes: SHAPES, tiers: TIERS, commands }).replace(/</g, '\\u003c');
+const init = { shape: 'airgap', tier: '24' };
+const s0 = SHAPES.find((s) => s.id === init.shape)!;
+const t0 = TIERS.find((t) => t.id === init.tier)!;
+const c0 = commands[`${init.shape}:${init.tier}`];
+const kindLabel = (k: string) => (k === 'helm' ? 'Helm' : k === 'sdk' ? 'Shell' : 'Compose');
+---
+<section class="section scope fleet" id="configurator" aria-labelledby="fleet-title">
+  <div class="container">
+    <div class="head">
+      <h2 id="fleet-title">{title}</h2>
+      <p>{lead}</p>
+    </div>
+
+    <form class="desk" data-cfg onsubmit="return false">
+      <div class="controls">
+        <fieldset class="bank">
+          <legend class="cap">Where it runs</legend>
+          <div class="keys keys-3 shapes">
+            {SHAPES.map((s) => (
+              <label class="key">
+                <input type="radio" name="shape" value={s.id} checked={s.id === init.shape} />
+                <span><b>{s.label}</b><i>{s.short}</i></span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset class="bank" data-tier-field>
+          <legend class="cap">Hardware</legend>
+          <div class="keys keys-3">
+            {TIERS.map((t) => (
+              <label class="key">
+                <input type="radio" name="tier" value={t.id} checked={t.id === init.tier} />
+                <span><b>{t.label}</b><i>{t.hardware}</i></span>
+              </label>
+            ))}
+          </div>
+          <p class="saas-note" data-saas-note hidden>In SaaS, Caliban runs the model pools. Hardware applies to VPC and air-gapped deployments.</p>
+        </fieldset>
+
+        <dl class="facts" aria-live="polite">
+          <div><dt class="cap">Data plane</dt><dd data-f="dataPlane">{s0.dataPlane}</dd></div>
+          <div><dt class="cap">Control plane</dt><dd data-f="controlPlane">{s0.controlPlane}</dd></div>
+          <div><dt class="cap">Models</dt><dd data-f="models">{s0.models}</dd></div>
+          <div><dt class="cap">Connectivity</dt><dd data-f="connectivity">{s0.connectivity}</dd></div>
+        </dl>
+          <ul class="inc" data-included>
+            {s0.included.map((i) => <li>{i}</li>)}
+          </ul>
+      </div>
+
+      <div class="assign" aria-live="polite">
+        <p class="assign-title"><span data-r="shape">{s0.label}</span> <span class="sep">/</span> <span data-r="tier">{t0.label}</span></p>
+        <ol class="assign-strips" data-stack>
+          <li><span class="k">CHAT</span><span><b data-r="chat">{t0.chat}</b><i data-r="chatAlt">{t0.chatAlt ? `Alt: ${t0.chatAlt}` : ''}</i></span></li>
+          <li><span class="k">EMB</span><span data-r="embedding">{t0.embedding}</span></li>
+          <li><span class="k">RRK</span><span data-r="reranker">{t0.reranker}</span></li>
+          <li><span class="k">ENG</span><span data-r="engine">{t0.engine}</span></li>
+          <li><span class="k">PRF</span><span data-r="profiles">{t0.profiles.map((p) => <code>{p}</code>)}</span></li>
+          <li><span class="k">MEM</span><span><span data-r="memory">{t0.memory}</span> <em class="est">estimate</em></span></li>
+          <li><span class="k">BDL</span><span data-r="bundled">{t0.bundled}</span></li>
+        </ol>
+        <p class="saas-stack" data-saas-stack hidden>Caliban runs the pools for you. Bring your own provider keys for OpenAI, Anthropic and others; open models run in Caliban-hosted pools.</p>
+
+
+        <div class="cmd">
+          <div class="cmd-head">
+            <span class="cap" data-cmd-label>{kindLabel(c0.kind)}</span>
+            <button type="button" class="copy" data-copy><span data-copy-label>Copy</span></button>
+          </div>
+          <pre data-cmd>{c0.lines.join('\n')}</pre>
+        </div>
+        <p class="foot">Memory figures are estimates from research note 09; benchmark per site. <a href="/deployment/">Full deployment guide</a></p>
+      </div>
+    </form>
+    <script is:inline type="application/json" data-cfg-data set:html={payload} />
+  </div>
+</section>
+
+<script>
+  const root = document.querySelector<HTMLFormElement>('[data-cfg]');
+  const dataEl = document.querySelector<HTMLScriptElement>('[data-cfg-data]');
+  if (root && dataEl) {
+    const data = JSON.parse(dataEl.textContent || '{}');
+    const $ = <T extends Element = HTMLElement>(sel: string) => root.querySelector<T>(sel);
+    const set = (key: string, val: string) => { const el = $(`[data-r="${key}"]`); if (el) el.textContent = val; };
+    const kindLabel = (k: string) => (k === 'helm' ? 'Helm' : k === 'sdk' ? 'Shell' : 'Compose');
+
+    const render = () => {
+      const fd = new FormData(root);
+      const shape = data.shapes.find((s: any) => s.id === fd.get('shape'));
+      const tier = data.tiers.find((t: any) => t.id === fd.get('tier'));
+      if (!shape || !tier) return;
+      const saas = shape.id === 'saas';
+      root.querySelectorAll<HTMLInputElement>('input[name="tier"]').forEach((i) => (i.disabled = saas));
+      $('[data-tier-field]')?.classList.toggle('is-disabled', saas);
+      $<HTMLElement>('[data-saas-note]')!.hidden = !saas;
+      $<HTMLElement>('[data-stack]')!.hidden = saas;
+      $<HTMLElement>('[data-saas-stack]')!.hidden = !saas;
+      for (const k of ['dataPlane', 'controlPlane', 'models', 'connectivity']) {
+        const el = $(`[data-f="${k}"]`); if (el) el.textContent = shape[k];
+      }
+      set('shape', shape.label);
+      set('tier', saas ? 'Caliban-hosted pools' : tier.label);
+      set('chat', tier.chat);
+      set('chatAlt', tier.chatAlt ? `Alt: ${tier.chatAlt}` : '');
+      set('embedding', tier.embedding);
+      set('reranker', tier.reranker);
+      set('engine', tier.engine);
+      set('memory', tier.memory);
+      set('bundled', tier.bundled);
+      const prof = $('[data-r="profiles"]');
+      if (prof) prof.replaceChildren(...tier.profiles.map((p: string) => { const c = document.createElement('code'); c.textContent = p; return c; }));
+      const inc = $('[data-included]');
+      if (inc) inc.replaceChildren(...shape.included.map((txt: string) => { const li = document.createElement('li'); li.textContent = txt; return li; }));
+      const cmd = data.commands[`${shape.id}:${tier.id}`];
+      $('[data-cmd]')!.textContent = cmd.lines.join('\n');
+      $('[data-cmd-label]')!.textContent = kindLabel(cmd.kind);
+      $('[data-copy-label]')!.textContent = 'Copy';
+    };
+    root.addEventListener('change', render);
+    $<HTMLButtonElement>('[data-copy]')?.addEventListener('click', async () => {
+      const label = $('[data-copy-label]');
+      try {
+        await navigator.clipboard.writeText($('[data-cmd]')?.textContent ?? '');
+        if (label) label.textContent = 'Copied';
+      } catch {
+        if (label) label.textContent = 'Select and copy';
+      }
+    });
+  }
+</script>
+
+<style>
+  .desk { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 40px; align-items: start; }
+  .bank { border: 0; padding: 0; margin: 0 0 26px; min-width: 0; }
+  .bank legend { color: var(--readout-3); margin-bottom: 10px; padding: 0; }
+  .keys { display: grid; gap: 1px; background: var(--scope-line-2); border: 1px solid var(--scope-line-2); }
+  .keys-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .key { position: relative; display: block; cursor: pointer; }
+  .key input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .key span { display: grid; gap: 4px; height: 100%; padding: 12px 14px; background: var(--scope-2); transition: background-color .18s var(--ease-out); }
+  .key b { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; font-size: 1.05rem; color: var(--readout); }
+  .key i { font-style: normal; color: var(--readout-3); font-size: 0.82rem; line-height: 1.35; }
+  .key:hover span { background: var(--scope-3); }
+  .key input:checked + span { background: var(--blue); }
+  .key input:checked + span i { color: var(--strip); }
+  .key input:focus-visible + span { outline: 2px solid var(--target); outline-offset: -4px; }
+  .is-disabled .key { opacity: 0.4; cursor: not-allowed; }
+  .saas-note { margin-top: 10px; color: var(--readout-2); font-size: 0.9rem; }
+  .facts { margin: 0; border-top: 1px solid var(--scope-line-2); }
+  .facts > div { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 16px; padding: 11px 0; border-bottom: 1px solid var(--scope-line); }
+  .facts dt { color: var(--readout-3); padding-top: 3px; }
+  .facts dd { margin: 0; color: var(--readout); }
+
+  .assign { background: var(--scope-2); border: 1px solid var(--scope-line-2); padding: 22px; }
+  .assign-title { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; font-size: 1.6rem; color: var(--readout); margin-bottom: 16px; line-height: 1; }
+  .sep { color: var(--readout-3); }
+  .assign-strips { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .assign-strips li { display: grid; grid-template-columns: 58px minmax(0, 1fr); background: var(--strip); color: var(--ink); border: 1px solid #fff; }
+  .assign-strips li > span { padding: 9px 12px; min-width: 0; }
+  .assign-strips .k { background: var(--blue); color: #fff; font-family: var(--mono); font-stretch: 87.5%; font-weight: 600; font-size: 0.72rem; display: flex; align-items: center; }
+  .assign-strips b { font-weight: 600; display: block; }
+  .assign-strips i { display: block; font-style: normal; color: var(--ink-3); font-size: 0.86rem; margin-top: 2px; }
+  .assign-strips code { margin-right: 6px; background: var(--strip-2); color: var(--blue-deep); padding: 1px 6px; display: inline-block; margin-block: 2px; }
+  .est { font-style: normal; font-family: var(--display); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.72rem; color: var(--blue-deep); box-shadow: inset 0 0 0 1px var(--blue); padding: 1px 6px; margin-left: 6px; }
+  .saas-stack { color: var(--readout-2); }
+  .inc { list-style: none; margin: 26px 0 0; padding: 0; display: grid; gap: 0; border-top: 1px solid var(--scope-line); }
+  .inc li { padding: 8px 0 8px 20px; border-bottom: 1px solid var(--scope-line); color: var(--readout-2); position: relative; font-size: 0.95rem; }
+  .inc li::before { content: ''; position: absolute; left: 0; top: 17px; width: 10px; height: 2px; background: var(--target); }
+  .cmd { margin-top: 18px; border: 1px solid var(--scope-line-2); background: var(--scope-1); }
+  .cmd-head { display: flex; justify-content: space-between; align-items: center; padding: 6px 6px 6px 12px; border-bottom: 1px solid var(--scope-line); color: var(--readout-3); }
+  .copy { background: transparent; border: 1px solid var(--scope-line-2); color: var(--readout); padding: 6px 12px; font-family: var(--display); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.8rem; cursor: pointer; }
+  .copy:hover { border-color: var(--target); color: #fff; }
+  .cmd pre { padding: 14px 12px; font-size: 0.74rem; color: var(--readout); line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
+  .foot { margin-top: 12px; font-size: 0.85rem; color: var(--readout-3); }
+
+  @media (max-width: 1080px) {
+    .desk { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .keys-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .keys-3.shapes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .shapes .key i { display: none; }
+    .shapes .key b { font-size: 0.92rem; }
+    .facts > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+    .assign { padding: 14px; }
+  }
+</style>

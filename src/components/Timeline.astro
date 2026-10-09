@@ -1,0 +1,88 @@
+---
+// A sequence set as flight strips: the step number in the code cell (the order carries information),
+// title and body in the main cell, and the design target (a blue-ruled Target key: an estimate) and build
+// status at the right. A target is set in mono only when it is a figure; a phrase stays in sans.
+// `body` may contain inline HTML (code, strong, links).
+export interface TimelineItem {
+  n?: string;
+  title: string;
+  body?: string;
+  chips?: string[];
+  target?: string;
+  status?: 'built' | 'wip';
+  statusLabel?: string;
+  key?: boolean;
+  group?: string;
+}
+interface Props { items: TimelineItem[]; dark?: boolean; compact?: boolean; label?: string }
+const { items, dark = false, compact = false, label } = Astro.props;
+// A figure (“< 0.2 ms”, “≤ 5–10% of traffic”) is data; a phrase (“a few tokens of delay”) is not.
+const isFigure = (t: string) => /\d/.test(t) && !/\b(?!tokens?\b|traffic\b)[a-z]{5,}\b/i.test(t);
+---
+<ol class:list={['tl', { dark, compact }]} aria-label={label}>
+  {items.map((it, i) => (
+    <>
+      {it.group && <li class="tl-group cap" aria-hidden="true">{it.group}</li>}
+      <li class:list={['tl-item', { key: it.key, meta: it.target || it.status }]}>
+        <span class="tl-code" aria-hidden="true">{it.n ?? String(i + 1).padStart(2, '0')}</span>
+        <div class="tl-body">
+          <h3 class="tl-title">{it.n && <span class="sr-only">Step {it.n}: </span>}{it.title}</h3>
+          {it.body && <p class="tl-text" set:html={it.body} />}
+          {it.chips && it.chips.length > 0 && <p class="tl-chips">{it.chips.join(' · ')}</p>}
+        </div>
+        {(it.target || it.status) && (
+          <div class="tl-meta">
+            {it.target && <p class="tl-target"><span class="badge badge-target">Target</span><span class:list={['tl-tv', { datum: isFigure(it.target) }]}>{it.target.split(' · ').map((t) => <span class="tl-tl">{t}</span>)}</span></p>}
+            {it.status && <span class:list={['status', it.status]}>{it.statusLabel ?? (it.status === 'built' ? 'Built' : 'In progress')}</span>}
+          </div>
+        )}
+      </li>
+    </>
+  ))}
+</ol>
+
+<style>
+  .tl { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; min-width: 0; }
+  .tl-item { display: grid; grid-template-columns: 64px minmax(0, 1fr); background: var(--strip); border: 1px solid var(--rule); min-width: 0; }
+  .tl-item.meta { grid-template-columns: 64px minmax(0, 1fr) 190px; }
+  .tl-item > * { min-width: 0; }
+  .tl-item > * + * { border-left: 1px solid var(--rule); }
+  .tl-code { background: var(--strip-2); color: var(--ink); font-family: var(--mono); font-weight: 600; font-size: 0.8rem; padding: 14px 12px; }
+  .tl-item.key .tl-code { background: var(--blue); color: #fff; }
+  .tl-body { padding: 14px 18px 16px; }
+  .tl-title { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; font-size: 1.2rem; line-height: 1.15; color: var(--ink); }
+  .tl-text { margin-top: 6px; color: var(--ink-2); font-size: 0.95rem; line-height: 1.6; }
+  .tl-chips { margin-top: 8px; color: var(--ink-3); font-size: 0.84rem; }
+  .tl-meta { padding: 14px 16px; display: grid; gap: 8px; align-content: start; justify-items: start; }
+  .tl-target { display: grid; gap: 4px; justify-items: start; }
+  .tl-meta .status { white-space: normal; max-width: 100%; line-height: 1.3; }
+  .tl-tv { color: var(--ink); font-size: 0.9rem; line-height: 1.4; overflow-wrap: anywhere; }
+  .tl-tv.datum { font-size: 0.82rem; }
+  .tl-tl { display: block; }
+  .tl-tv.datum .tl-tl { white-space: nowrap; }
+  .tl-group { padding: 16px 0 4px; color: var(--ink-3); }
+  .tl-group:first-child { padding-top: 0; }
+  .compact .tl-body { padding: 10px 16px 12px; }
+  .compact .tl-code { padding: 10px 12px; }
+
+  .dark .tl-item { background: var(--scope-2); border-color: var(--scope-line-2); }
+  .dark .tl-item > * + * { border-color: var(--scope-line); }
+  .dark .tl-code { background: var(--scope-3); color: var(--readout); }
+  .dark .tl-item.key .tl-code { background: var(--blue); color: #fff; }
+  .dark .tl-title { color: var(--readout); }
+  .dark .tl-text { color: var(--readout-2); }
+  .dark .tl-chips { color: var(--readout-3); }
+  .dark .tl-tv { color: var(--readout); }
+  .dark .badge-target { color: var(--target); box-shadow: inset 0 0 0 1px var(--scope-line-2); }
+  .dark .tl-group { color: var(--readout-3); }
+  .dark .status.wip { color: var(--readout-2); box-shadow: inset 0 0 0 1px var(--scope-line-2); }
+
+  @media (max-width: 640px) {
+    .tl-item, .tl-item.meta { grid-template-columns: 48px minmax(0, 1fr); }
+    .tl-code { padding: 12px 8px; }
+    .tl-meta { grid-column: 2; border-top: 1px solid var(--rule); display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 14px; }
+    .dark .tl-meta { border-top-color: var(--scope-line); }
+    .tl-target { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .tl-body { padding: 12px 14px 14px; }
+  }
+</style>

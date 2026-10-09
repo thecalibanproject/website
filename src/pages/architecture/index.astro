@@ -1,0 +1,443 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import SystemDiagram from '../../components/SystemDiagram.astro';
+import Timeline from '../../components/Timeline.astro';
+import StatusTable from '../../components/StatusTable.astro';
+import Close from '../../components/air/Close.astro';
+import { CRATES } from '../../data/status';
+
+const capabilities = [
+  { code: 'ONT', title: 'Ontology layer', body: 'Connect any datasource. Answers are grounded in a governed business model of your data, not raw schemas.', href: '/platform/ontology/', notes: ['03', '08'] },
+  { code: 'RTE', title: 'Intent classification & routing', body: 'Every request goes to the cheapest model, agent and datasource set that meets the quality floor.', href: '/platform/routing/', notes: ['02'] },
+  { code: 'NOD', title: 'Agents (“nodes”)', body: 'Versioned, budgeted and secure AI sub-apps, each callable over HTTP, MCP and A2A.', href: '/platform/nodes/', notes: ['04'] },
+  { code: 'PII', title: 'Anonymization', body: 'Personal data is pseudonymized before it leaves the trust boundary and restored in the response, streams included.', href: '/platform/privacy/', notes: ['05'] },
+  { code: 'CCH', title: 'Fewer tokens, faster answers', body: 'Provider prompt-cache steering, tenant-scoped exact and semantic caching, RAG plus compression, and plan caching.', href: '/platform/caching/', notes: ['01', '06'] },
+  { code: 'SOV', title: 'Sovereign router', body: 'The same Rust binary runs as SaaS, in a customer VPC, or air-gapped with on-prem open-weight models.', href: '/deployment/', notes: ['07'] },
+] as const;
+const noteSlug: Record<string, string> = {
+  '01': '01-semantic-caching-and-rust-vector-stack', '02': '02-intent-classification-and-routing', '03': '03-ontology-and-datasource-layer',
+  '04': '04-agent-orchestration', '05': '05-anonymization-and-privacy', '06': '06-rag-and-token-efficiency',
+  '07': '07-gateway-serving-and-sovereign-deployment', '08': '08-ontology-deep-dive-nosql', '09': '09-open-models-on-prem',
+};
+
+const evidence = [
+  ['Text-to-SQL on raw enterprise schemas scores about 10–16%; over an ontology or KG, 54–72%; within a governed semantic layer, 98–100% (11 questions).', 'The ontology is the core asset. Never run free-form SQL over raw schemas in production.'],
+  ['The model picks from a bounded menu and deterministic code compiles the query: 97.4% vs 55.3% (small eval).', 'The compiler enforces permissions, never the prompt.'],
+  ['Simple routers match complex ones; most of the gain comes from the task type.', 'Start with intent → model tables plus embedding kNN; add learned routing later.'],
+  ['Static-threshold semantic caching gives too many false hits; per-entry thresholds report up to 12.5× more hits and 26× fewer errors.', 'Semantic cache only on allowlisted intents, with learned thresholds and an error budget.'],
+  ['Gateways that pool provider keys break per-organisation prompt-cache isolation; all 5 OSS gateways tested leaked.', 'Each tenant gets its own upstream identity. Never share a semantic cache across tenants.'],
+  ['Provider prompt-cache reads cost 0.05–0.1× the input price.', 'Steering provider caches is the biggest saving per unit of engineering. Compression never rewrites the cached prefix.'],
+  ['Presidio alone misses most partial or obfuscated PII; placeholders hurt quality; surrogates recover about 13 pts of BERTScore.', 'Tiered detector and realistic surrogates, not placeholders.'],
+  ['Embeddings can be inverted to text (92% exact recovery on 32-token inputs).', 'Treat cached vectors as personal data: embed only pseudonymized text, per-tenant collections and keys.'],
+  ['Free-form multi-agent systems fail 41–87% of the time; plan-then-execute reports up to 6.7× lower cost.', 'Nodes are typed, budgeted graphs; security is enforced in the Rust core.'],
+  ['Tool-description poisoning succeeds over 72% of the time.', 'Pinned and hashed tool manifests, taint tracking, per-call down-scoped tokens.'],
+  ['More retrieved context makes quality rise and then fall; PoisonedRAG reaches 97% attack success with 5 texts.', 'A token budget with a rerank cutoff; compression off by default; ingestion is a security boundary.'],
+  ['BIRD and Spider 2.0 have 50–60% annotation errors in audited samples.', 'Build per-tenant golden sets in the product. Public leaderboards are not a target.'],
+];
+
+const stages = [
+  { group: 'Ingress', n: '1', title: 'Auth', target: '< 0.2 ms', body: 'API key, JWT or mTLS → tenant, principal and scopes.', chips: ['axum / hyper', 'in-memory key index'] },
+  { n: '2', title: 'Tenant policy', target: '< 0.1 ms', body: 'Allowed models, regions and licences; zero data retention; PII mode; budgets.', chips: ['compiled decision table'] },
+  { n: '3', title: 'Quota', target: '< 1 ms', body: 'GCRA request rate plus a token-budget reservation from a local estimate.', chips: ['governor', 'Valkey Lua', 'tokenizers'] },
+  { n: '4', title: 'Parse → IR', target: '< 0.5 ms', body: 'OpenAI Chat/Responses or Anthropic Messages → CalibanIR, parsed once, zero-copy.', chips: ['serde', 'simd-json'] },
+  { group: 'Protect and reuse', n: '5', key: true, title: 'Anonymize', target: 'L0 < 1 ms · L1 5–30 ms / 1k tok', body: 'Regex, validators and tenant dictionaries → in-process NER via ONNX → (local LLM, strict mode only) → vault surrogates.', chips: ['regex', 'aho-corasick', 'ort'] },
+  { n: '6', key: true, title: 'Cache', target: 'T1 < 5 ms · T2 < 15 ms', body: 'T1 exact (BLAKE3 key incl. ACL fingerprint and datasource epochs) → T2 semantic (allowlisted intents, per-entry threshold, slot equality).', chips: ['moka', 'foyer', 'usearch', 'Qdrant'] },
+  { group: 'Decide and ground', n: '7', key: true, title: 'Classify + route', target: 'p50 < 10 ms without LLM fallback', body: 'Rules → embedding kNN → ModernBERT multi-head → LLM fallback for ≤ 5–10% of traffic → pick a model within the route.', chips: ['ort / candle', 'shared embedding'] },
+  { n: '8', key: true, title: 'Ground', target: 'depends on the source', body: 'Ontology retrieval filtered by policy before retrieval → lane A (metric compiler), B (validated SQL) or C (document RAG).', chips: ['DataFusion', 'sqlparser-rs', 'tantivy', 'Qdrant'] },
+  { group: 'Execute', n: '9', title: 'Execute', body: 'A single model call, or a node graph run by the durable executor.', chips: ['tokio', 'rmcp', 'Restate or a Postgres journal'] },
+  { n: '10', title: 'Provider adapter', body: 'IR → wire format with per-tenant credentials, canonical prefix ordering, cache_control / prompt_cache_key, a retry budget and a circuit breaker. No retry after the first byte.', chips: ['reqwest / hyper HTTP/2 pools'] },
+  { n: '11', title: 'Stream', body: 'SSE passthrough with backpressure, translated to the client’s dialect.', chips: ['bounded channels'] },
+  { group: 'Return', n: '12', key: true, title: 'Rehydrate', target: 'a few tokens of delay', body: 'Aho-Corasick over the active surrogates, with a hold-back buffer of (longest surrogate − 1) characters and a fuzzy fallback.', chips: ['aho-corasick'] },
+  { n: '13', title: 'Meter', target: 'async', body: 'Settle the reservation against actual usage, cached and reasoning tokens included. Idempotent usage events.', chips: ['WAL', 'event bus'] },
+  { n: '14', title: 'Trace', target: 'async', body: 'OpenTelemetry GenAI span tree. Content capture is opt-in only, and never in zero-data-retention mode.', chips: ['opentelemetry'] },
+];
+
+const skus = [
+  { name: 'SaaS', dp: 'Caliban-run regional cells (EU, US)', cp: 'Caliban-hosted', models: 'Third-party APIs + Caliban-hosted open models', net: 'Internet' },
+  { name: 'VPC / dedicated', dp: 'Customer Kubernetes via Helm, single tenant', cp: 'Caliban-hosted (outbound-only link) or self-hosted', models: 'BYOK + customer GPUs', net: 'Private link' },
+  { name: 'Sovereign / air-gapped', dp: 'Customer on-prem', cp: 'Embedded: caliban standalone with local Postgres', models: 'Open-weight only, signed', net: 'None. Signed offline bundles.' },
+];
+
+const roadmap = [
+  ['P0', 'Gateway MVP', '“Point your OpenAI SDK at us”', 'Stages 1–4 and 10–14, OpenAI + Anthropic APIs, per-tenant upstream identity, prefix steering, T1 exact cache, metering, OTel.', 'Under 3 ms p50 overhead; isolation audit passes; usage matches provider bills within 1%.'],
+  ['P1', 'Privacy + routing', '“Cheaper and safe by default”', 'L0 + L1 PII with surrogates and streaming rehydration; routing stages 0, 1 and 4; BYO-model probe onboarding; savings dashboard.', 'Rehydration miss rate under 0.5%; measured savings at a fixed quality floor on design-partner traffic.'],
+  ['P2', 'Ontology', '“Talk to your data, correctly”', 'Connectors for 5–8 sources; CSM, bootstrap and curation UI; lanes A and B; epoch invalidation; per-tenant golden sets.', 'Golden-set accuracy above a target agreed with each design partner; zero policy bypasses in the red-team suite.'],
+  ['P3', 'Nodes', '“Build AI sub-apps”', 'Node config, graph executor, journal, budgets; MCP/A2A exposure; templates; plan cache; eval loop.', 'pass^k and cost per success reported per node; injection suite runs in CI.'],
+  ['P4', 'Sovereign', '“Run it all on-prem”', 'Standalone control plane, air-gap bundle, vLLM/SGLang + llm-d, signed weights, LoRA registry, router heads, T2 semantic cache.', 'One customer running fully offline with no egress.'],
+];
+
+const repos = [
+  { name: 'core/', lang: 'Rust workspace', body: 'Data plane, control plane and standalone mode in one binary. Owns the API contract and the config, ontology and node schemas.', lic: 'Proprietary' },
+  { name: 'web/', lang: 'TypeScript, React, Vite', body: 'Admin console, built to static files and served by the control plane. No CDN, no external fonts, no telemetry.', lic: 'Proprietary' },
+  { name: 'sdk-typescript/', lang: 'TypeScript', body: '@caliban/sdk: OpenAI-compatible helpers, the Caliban extension fields, the admin client and node authoring types.', lic: 'Apache-2.0' },
+  { name: 'sdk-python/', lang: 'Python', body: 'caliban-sdk: the same surface in Python, plus an eval harness for nodes and golden sets.', lic: 'Apache-2.0' },
+  { name: 'ml/', lang: 'Python', body: 'Offline training and export: router heads, PII NER evaluation and fine-tuning, BYO-model probe sets. Its only output to core is ONNX + JSON.', lic: 'Proprietary' },
+  { name: 'deploy/', lang: 'Compose, Helm, shell', body: 'On-prem first: the compose stack, the Helm chart, air-gap bundle scripts and example configs.', lic: 'Proprietary' },
+  { name: 'docs/', lang: 'Markdown', body: 'Research, architecture and decisions. This site renders it.', lic: 'Proprietary' },
+];
+
+const conventions = [
+  ['Data plane port', '8080: OpenAI-compatible /v1/*, plus /healthz and /metrics'],
+  ['Control plane port', '8081: admin API /api/v1/*, plus the web console at /'],
+  ['Config file', 'CALIBAN_CONFIG (TOML), default /etc/caliban/caliban.toml'],
+  ['Tenant API keys', 'cal_<random>, as Authorization: Bearer (OpenAI SDKs) or x-api-key (Anthropic SDKs). Only the SHA-256 hash is stored.'],
+  ['BYOK at rest', 'AES-256-GCM under the KEK from CALIBAN_KEK (base64, 32 bytes)'],
+  ['Postgres', 'CALIBAN_DATABASE_URL; unset = in-memory dev store. Migrations run at startup.'],
+  ['Audit log', 'Every control-plane mutation appends a hash-chained audit_log row; GET /api/v1/audit'],
+  ['Split mode', 'Routers poll GET /api/v1/snapshot, verify the Ed25519 signature, refuse rollbacks and stay fail-static'],
+  ['Telemetry', 'Off by default. OTLP only if OTEL_EXPORTER_OTLP_ENDPOINT is set; prompt and response content is never recorded.'],
+  ['PII NER model', 'CALIBAN_PII_NER_DIR (verified artifact, binary built with --features ner)'],
+];
+
+const made = [
+  { t: 'BYOK only', b: 'Each tenant brings its own provider keys or local endpoints. Upstream credentials are never pooled, which removes the cross-tenant prompt-cache leak by construction.' },
+  { t: '100% on-prem capable', b: 'All components, including the control plane, web console and models, run with zero egress. SaaS is the same software, operated by us.' },
+  { t: 'MongoDB stays the system of record', b: 'The LLM emits CQIR; a Rust compiler lowers it to a linted pipeline on a read-only secondary or to SQL over a change-stream-fed Parquet replica. Free-form text-to-MQL is never executed.' },
+  { t: 'Ontology store = Postgres', b: 'Append-only and versioned, compiled into an in-memory graph in the data-plane snapshot. Oxigraph only for RDF/OWL import and export.' },
+  { t: 'Licensing', b: 'The SDKs are Apache-2.0; core, web, ml, deploy, docs and website are proprietary. Dependencies must allow on-prem redistribution: no SSPL, BSL or non-commercial weights in the default bundle.' },
+];
+const open = [
+  { t: 'Spice.ai / WrenAI: fork, embed or compete?', b: 'Decides the shape of P2. Spice.ai OSS already ships Rust change-stream replication from MongoDB.' },
+  { t: 'Journal backend for nodes', b: 'Restate (check its licence for air-gapped redistribution) or a minimal Postgres journal.' },
+  { t: 'Pricing model', b: 'A flat price for caliban/auto (routing manipulation becomes Caliban’s margin risk), or pass-through plus a fee.' },
+  { t: 'Canonical metric format', b: 'MetricFlow/OSI as the canonical format, or the CSM as a superset of it.' },
+  { t: 'Surrogate scope default', b: 'Session (safer) or tenant (higher cache hit rate, but sessions become linkable).' },
+];
+
+const onPage = [
+  ['SYS', 'overview', 'System overview'], ['CAP', 'capabilities', 'Six capabilities'], ['LIF', 'lifecycle', 'Request lifecycle'],
+  ['EVD', 'evidence', 'Evidence behind the design'], ['SKU', 'skus', 'Deployment SKUs'], ['STA', 'status', 'What is built today'],
+  ['MAP', 'roadmap', 'Roadmap'], ['REP', 'repos', 'Repos & conventions'], ['DEC', 'decisions', 'Decisions made and open'],
+];
+---
+<Base title="Architecture" description="The Caliban reference architecture: a control plane and a single-binary Rust data plane with a 14-stage request lifecycle, stores, deployment SKUs, repos and the decisions made and still open.">
+  <PageHero
+    crumbs={[{ label: 'Architecture' }]}
+    title="One endpoint for every model, one binary on the request path"
+    lead="Caliban is the single AI endpoint for a company. Apps point at Caliban instead of a provider, connect their datasources once, and build AI sub-apps on top. Every decision below links to the research note that supports it."
+  >
+    <p class="ph-version">Reference architecture v0.1, draft of <span class="datum">2026-10-02</span></p>
+    <Fragment slot="actions">
+      <a class="btn btn-primary" href="#overview">System overview</a>
+      <a class="btn btn-secondary" href="/architecture/reference/">Read the full document</a>
+    </Fragment>
+    <nav slot="visual" class="onpage" aria-label="On this page">
+      <p class="cap onpage-cap">On this page</p>
+      <ol>
+        {onPage.map(([code, id, l]) => (
+          <li><a href={`#${id}`}><span class="op-code">{code}</span><span class="op-label">{l}</span></a></li>
+        ))}
+      </ol>
+    </nav>
+  </PageHero>
+
+  <section class="section paper" id="overview" aria-labelledby="overview-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="overview-title">A control plane that decides, a data plane that serves</h2>
+        <div class="head-side">
+          <p>The data plane holds no authoritative state. It runs on a signed config snapshot and keeps serving the last good one if the control plane is unavailable.</p>
+          <a class="link-arrow" href="/research/07-gateway-serving-and-sovereign-deployment/#1-control-plane--data-plane-split">Why the split</a>
+        </div>
+      </div>
+      <SystemDiagram />
+    </div>
+  </section>
+
+  <section class="section paper ruled" id="capabilities" aria-labelledby="cap-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="cap-title">Six capabilities. The combination is the product.</h2>
+        <p>Speed alone will not differentiate Caliban: fast Rust gateways already exist. No product combines streaming-safe reversible pseudonymization, routing and grounding that understand the tenant’s own data, a real multi-tenant control plane with nodes and budgets, and one signed binary for SaaS, VPC and air-gap.</p>
+      </div>
+      <ul class="strip-bay cols-2 caps-bay">
+        {capabilities.map((c) => (
+          <li class="strip capability">
+            <span class="code-cell">{c.code}</span>
+            <div class="cb-body">
+              <h3 class="strip-title"><a href={c.href}>{c.title}</a></h3>
+              <p>{c.body}</p>
+              <p class="cb-notes"><span class="cap">Research</span> {c.notes.map((n, i) => <>{i > 0 && ' · '}<a class="datum" href={`/research/${noteSlug[n]}/`}>{n}</a></>)}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section scope" id="lifecycle" aria-labelledby="life-title">
+    <div class="container split life">
+      <div class="sticky-col">
+        <h2 id="life-title" class="title-sm">Fourteen stages, in the same order, on every request</h2>
+        <div class="rich">
+          <p>Each stage is a <code>tower::Layer</code>, so each deployment composes its own stack from config. Latency figures are <strong>design targets to benchmark, not measurements</strong>.</p>
+        </div>
+        <dl class="ledger budget" style="--dt:150px" aria-label="Gateway overhead budget">
+          <div><dt class="cap">Overhead <span class="nc">p50</span></dt><dd><span class="datum">&lt; 3 ms</span><span class="badge badge-target">Target</span></dd></div>
+          <div><dt class="cap">Overhead <span class="nc">p99</span></dt><dd><span class="datum">&lt; 10 ms</span><span class="badge badge-target">Target</span></dd></div>
+          <div><dt class="cap">Excludes</dt><dd>Models, classifiers and RAG.</dd></div>
+        </dl>
+        <p class="callout dark"><span class="callout-k">Rule</span><span><strong>The one-embedding rule.</strong> Compute one embedding per request, of the <em>pseudonymized</em> text, and reuse it for the semantic cache, routing kNN, RAG retrieval and drift monitoring.</span></p>
+      </div>
+      <Timeline items={stages} dark label="The 14 data-plane stages" />
+    </div>
+  </section>
+
+  <section class="section paper" id="evidence" aria-labelledby="ev-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="ev-title">Findings that change what gets built</h2>
+        <div class="head-side">
+          <p>Each finding is checked against its source paper in the research notes. These are published third-party results, not Caliban measurements.</p>
+          <a class="link-arrow" href="/research/">All research notes</a>
+        </div>
+      </div>
+      <div class="evl" role="table" aria-label="Findings and the decisions they drive">
+        <div class="evl-row evl-hd" role="row"><span class="cap" role="columnheader">Published finding</span><span class="cap" role="columnheader">What Caliban does about it</span></div>
+        {evidence.map(([f, c]) => (
+          <div class="evl-row" role="row">
+            <p class="evl-f" role="cell">{f}</p>
+            <p class="evl-c" role="cell">{c}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section paper ruled" id="skus" aria-labelledby="sku-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="sku-title">One binary, three shapes</h2>
+        <div class="head-side">
+          <p><code>ConfigSource</code>, <code>UsageSink</code>, <code>SecretStore</code> and <code>ModelProvider</code> are traits selected by build features and runtime config, so each shape is packaging rather than a fork.</p>
+          <a class="link-arrow" href="/deployment/">Deployment guide</a>
+        </div>
+      </div>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Deployment SKUs">
+        <table>
+          <thead><tr><th scope="col">SKU</th><th scope="col">Data plane</th><th scope="col">Control plane</th><th scope="col">Models</th><th scope="col">Connectivity</th></tr></thead>
+          <tbody>{skus.map((s) => <tr><td>{s.name}</td><td>{s.dp}</td><td>{s.cp}</td><td>{s.models}</td><td>{s.net}</td></tr>)}</tbody>
+        </table>
+      </div>
+      <ul class="rgrid sku-notes" style="--n:3">
+        <li><h3>No inference engine of our own</h3><p>vLLM by default, SGLang for prefix-heavy agent and RAG pools, llm-d or NVIDIA Dynamo for scheduling. Per-tenant fine-tunes are LoRA adapters from a signed registry only.</p></li>
+        <li><h3>Licences safe for EU use</h3><p>gpt-oss, Qwen, the Apache-licensed Mistral line and DeepSeek-V4 for multi-node budgets. Llama 4 is blocked by default for EU tenants.</p></li>
+        <li><h3>Supply chain</h3><p>Reproducible builds, cargo vet and cargo deny, vendored crates, signed SBOMs and an ML-BOM, and signed model weights. A FIPS build uses aws-lc-rs.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section paper ruled" id="status" aria-labelledby="status-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="status-title" class="head-sm">The reference design, crate by crate</h2>
+        <p>From <code>core/README.md</code>. “Built” means implemented and tested; “in progress” means designed but not yet built. One binary, <code>caliban</code>, runs the router, the control plane, or both as <code>caliban standalone</code>.</p>
+      </div>
+      <StatusTable rows={CRATES} />
+    </div>
+  </section>
+
+  <section class="section paper ruled" id="roadmap" aria-labelledby="road-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="road-title" class="head-sm">Cost and protection first, the moat second</h2>
+        <p>P0 and P1 are what customers pay for first. P2, the ontology, is the moat. P3 depends on P2’s scopes and policies. P4 is mostly packaging if the trait boundaries are right from P0.</p>
+      </div>
+      <ol class="road">
+        {roadmap.map(([p, name, quote, scope, exit]) => (
+          <li class="road-row">
+            <span class="road-p">{p}</span>
+            <div class="road-name"><h3 class="strip-title">{name}</h3><p class="road-q">{quote}</p></div>
+            <div class="road-cell"><span class="cap">Scope</span><p>{scope}</p></div>
+            <div class="road-cell exit"><span class="cap">Exit criteria</span><p>{exit}</p></div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <section class="section paper ruled" id="repos" aria-labelledby="repos-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="repos-title" class="head-sm">Seven repositories, side by side</h2>
+        <div class="head-side">
+          <p>Each one is its own git repository under <code>~/caliban/</code>. The SDKs are Apache-2.0; everything else is proprietary, © 2026 Elie Sfeir.</p>
+          <a class="link-arrow" href="/architecture/repos-and-conventions/">Full conventions</a>
+        </div>
+      </div>
+      <ul class="repos">
+        {repos.map((r) => (
+          <li class="repo">
+            <span class="repo-name"><code>{r.name}</code></span>
+            <span class="repo-lang">{r.lang}</span>
+            <span class="repo-body">{r.body}</span>
+            <span class="repo-lic"><span class:list={['badge', { 'badge-plan': r.lic !== 'Apache-2.0' }]}>{r.lic}</span></span>
+          </li>
+        ))}
+      </ul>
+      <h3 class="conv-title cap">Runtime conventions</h3>
+      <dl class="ledger conv" style="--dt:190px">
+        {conventions.map(([a, b]) => <div><dt class="cap">{a}</dt><dd>{b}</dd></div>)}
+      </dl>
+    </div>
+  </section>
+
+  <section class="section scope dec" id="decisions" aria-labelledby="dec-title">
+    <div class="container">
+      <div class="head solo">
+        <h2 id="dec-title">Made on 2026-10-02, and still open</h2>
+      </div>
+      <div class="dec-grid">
+        <div>
+          <h3 class="dec-h cap">Made</h3>
+          <ul class="strip-bay">{made.map((d) => <li class="strip dec-strip"><span class="code-cell">MADE</span><div><h4 class="strip-title">{d.t}</h4><p>{d.b}</p></div></li>)}</ul>
+        </div>
+        <div>
+          <h3 class="dec-h cap">Still open</h3>
+          <ul class="strip-bay">{open.map((d) => <li class="strip dec-strip"><span class="code-cell open">OPEN</span><div><h4 class="strip-title">{d.t}</h4><p>{d.b}</p></div></li>)}</ul>
+          <div class="callout dark gaps">
+            <span class="callout-k">Known gaps</span>
+            <ul>
+              <li>Text-to-API is still thin; text-to-NoSQL is covered in note 08.</li>
+              <li>No survey yet of multimodal (image, audio, OCR) PII handling.</li>
+              <li>Some 2026 regulatory facts come from law-firm blogs; counsel should verify them.</li>
+              <li>All latency targets are engineering estimates, to benchmark in P0 and P1.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="docs-links">
+        <a class="doc-link strip-link" href="/architecture/reference/"><span class="dl-code">REF</span><span class="dl-text"><strong>Reference architecture</strong><span>The full v0.1 document, rendered from the docs repo</span></span></a>
+        <a class="doc-link strip-link" href="/architecture/repos-and-conventions/"><span class="dl-code">REP</span><span class="dl-text"><strong>Repos & conventions</strong><span>Ports, env vars, the request extension, rate limits</span></span></a>
+      </div>
+    </div>
+  </section>
+
+  <Close secondary={{ label: 'Plan a deployment', href: '/deployment/' }} />
+</Base>
+
+<style>
+  .ruled { border-top: 1px solid var(--rule); }
+  .head-side { display: grid; gap: 14px; justify-items: start; }
+
+  /* Hero: on-this-page strips */
+  .onpage-cap { color: var(--readout-3); margin-bottom: 12px; }
+  .onpage ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .onpage a { display: grid; grid-template-columns: 56px minmax(0, 1fr); border: 1px solid var(--scope-line); color: var(--readout); text-decoration: none; transition: background-color .18s var(--ease-out); }
+  .onpage a:hover { background: var(--scope-3); border-color: var(--scope-line-2); color: #fff; }
+  .op-code { background: var(--blue); color: #fff; font-family: var(--mono); font-weight: 600; font-size: 0.72rem; display: flex; align-items: center; justify-content: center; padding: 9px 0; }
+  .op-label { padding: 8px 14px; font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; font-size: 1rem; border-left: 1px solid var(--scope-line); }
+
+  /* Capabilities */
+  .caps-bay { list-style: none; margin: 0; padding: 0; }
+  .capability { --cols: 64px minmax(0, 1fr); }
+  .capability .code-cell { justify-content: flex-start; }
+  .cb-body { padding: 16px 20px 18px !important; }
+  .cb-body h3 a { color: var(--ink); text-decoration: none; }
+  .cb-body h3 a:hover { color: var(--blue); }
+  .cb-body > p { margin-top: 6px; }
+  .cb-notes { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-top: 12px !important; padding-top: 10px; border-top: 1px solid var(--rule); }
+  .cb-notes .cap { color: var(--ink-3); }
+
+  /* Lifecycle */
+  .life .sticky-col { position: sticky; top: calc(var(--nav-h) + 32px); }
+  .life .rich { margin-top: 18px; }
+  .budget { margin-top: 28px; }
+  .budget .nc { font-family: var(--mono); text-transform: none; letter-spacing: 0; }
+  .budget dd { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+  .budget .datum { color: var(--readout); font-size: 0.88rem; font-weight: 700; }
+  .budget .badge-target { color: var(--target); box-shadow: inset 0 0 0 1px var(--scope-line-2); }
+  .life .callout { margin-top: 20px; }
+  .ph-version { margin-top: 18px; color: var(--readout-3); font-size: 0.92rem; }
+  .ph-version .datum { color: var(--readout-2); }
+
+  /* Evidence ledger */
+  .evl { border-top: 1px solid var(--rule-2); }
+  .evl-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); border-bottom: 1px solid var(--rule); }
+  .evl-row > * { padding: 14px 20px 14px 0; }
+  .evl-row > * + * { padding-left: 20px; border-left: 1px solid var(--rule); }
+  .evl-hd .cap { color: var(--ink-3); padding-block: 10px; }
+  .evl-f { color: var(--ink-2); font-size: 0.97rem; line-height: 1.6; }
+  .evl-c { color: var(--ink); font-weight: 600; font-size: 0.97rem; line-height: 1.55; }
+
+  .sku-notes { margin-top: 24px; }
+
+  /* Roadmap strips */
+  .road { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .road-row { display: grid; grid-template-columns: 72px minmax(0, 0.8fr) minmax(0, 1.3fr) minmax(0, 1fr); background: var(--strip); border: 1px solid var(--rule); }
+  .road-row > * { min-width: 0; padding: 16px 18px; }
+  .road-row > * + * { border-left: 1px solid var(--rule); }
+  .road-p { background: var(--blue); color: #fff; font-family: var(--display); font-weight: 700; font-size: 1.9rem; letter-spacing: 0.04em; line-height: 1; padding: 16px 14px; }
+  .road-q { margin-top: 6px; color: var(--ink-3); font-size: 0.92rem; }
+  .road-cell { display: grid; gap: 6px; align-content: start; }
+  .road-cell .cap { color: var(--ink-3); }
+  .road-cell p { color: var(--ink-2); font-size: 0.94rem; line-height: 1.55; }
+  .road-cell.exit { background: #fff; }
+
+  /* Repos */
+  .repos { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .repo { display: grid; grid-template-columns: 190px 190px minmax(0, 1fr) 140px; background: var(--strip); border: 1px solid var(--rule); }
+  .repo > span { padding: 12px 16px; min-width: 0; }
+  .repo > span + span { border-left: 1px solid var(--rule); }
+  .repo-name code { background: none; padding: 0; color: var(--blue-deep); font-weight: 600; font-size: 0.82rem; }
+  .repo-lang { color: var(--ink-3); font-size: 0.92rem; }
+  .repo-body { color: var(--ink-2); font-size: 0.95rem; line-height: 1.55; }
+  .conv-title { margin: 48px 0 12px; color: var(--ink-3); font-family: var(--display); }
+  .conv dt { color: var(--ink); }
+
+  /* Decisions */
+  .dec-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; }
+  .dec-h { color: var(--readout-3); margin-bottom: 12px; font-family: var(--display); }
+  .dec-grid .strip-bay { list-style: none; margin: 0; padding: 0; }
+  .dec-strip { --cols: 64px minmax(0, 1fr); }
+  .dec-strip h4 { color: var(--readout); }
+  .dec-strip p { margin-top: 6px; font-size: 0.93rem !important; }
+  .dec-strip .code-cell { font-size: 0.7rem; }
+  .dec-strip .code-cell.open { background: var(--scope-3); color: var(--readout-2); box-shadow: inset 0 0 0 1px var(--scope-line-2); }
+  .gaps { margin-top: 14px; }
+  .gaps ul { margin: 0; padding: 12px 14px 12px 32px; display: grid; gap: 6px; font-size: 0.9rem; list-style: square; }
+  .gaps li::marker { color: var(--target); }
+  .docs-links { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 48px; }
+  .doc-link { display: grid; grid-template-columns: 64px minmax(0, 1fr); background: var(--strip); border: 1px solid var(--rule); color: var(--ink); text-decoration: none; }
+  .scope .doc-link { color: var(--ink); }
+  .dl-code { background: var(--blue); color: #fff; font-family: var(--mono); font-weight: 600; font-size: 0.78rem; display: grid; place-items: center; }
+  .dl-text { display: grid; gap: 2px; padding: 14px 18px; }
+  .dl-text strong { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; font-size: 1.25rem; line-height: 1.1; }
+  .dl-text span { font-size: 0.9rem; color: var(--ink-3); }
+  .doc-link:hover strong { color: var(--blue); }
+
+  @media (max-width: 1180px) {
+    .road-row { grid-template-columns: 72px minmax(0, 1fr) minmax(0, 1fr); }
+    .road-name { grid-column: 2 / 4; }
+    .road-cell { grid-row: 2; border-top: 1px solid var(--rule); }
+    .road-cell:not(.exit) { grid-column: 2; }
+    .road-cell.exit { grid-column: 3; }
+    .road-p { grid-row: 1 / 3; }
+    .repo { grid-template-columns: 180px minmax(0, 1fr) 130px; }
+    .repo-lang { grid-column: 1; grid-row: 2; border-left: 0 !important; border-top: 1px solid var(--rule); font-size: 0.86rem; }
+    .repo-name { grid-row: 1; }
+    .repo-body { grid-column: 2; grid-row: 1 / 3; }
+    .repo-lic { grid-column: 3; grid-row: 1 / 3; }
+  }
+  @media (max-width: 1080px) {
+    .life .sticky-col { position: static; }
+    .dec-grid { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 760px) {
+    .evl-row { grid-template-columns: minmax(0, 1fr); }
+    .evl-row > * { padding: 12px 0 0; }
+    .evl-row > * + * { padding: 6px 0 14px; border-left: 0; }
+    .evl-hd { display: none; }
+    .road-row { grid-template-columns: minmax(0, 1fr); }
+    .road-p { grid-row: auto; font-size: 1.4rem; padding: 10px 16px; }
+    .road-name, .road-cell:not(.exit), .road-cell.exit { grid-column: 1; grid-row: auto; border-left: 0 !important; }
+    .road-cell { border-top: 1px solid var(--rule); }
+    .repo { grid-template-columns: minmax(0, 1fr) auto; }
+    .repo-name { grid-column: 1; grid-row: 1; }
+    .repo-lic { grid-column: 2; grid-row: 1; }
+    .repo-lang { grid-column: 1 / 3; grid-row: 2; }
+    .repo-body { grid-column: 1 / 3; grid-row: 3; border-left: 0 !important; border-top: 1px solid var(--rule); }
+    .docs-links { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>

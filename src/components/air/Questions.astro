@@ -1,0 +1,47 @@
+---
+import { FAQS } from '../../data/faq';
+import { CONTACT_HREF } from '../../config';
+---
+<section class="section paper qs" aria-labelledby="qs-title">
+  <div class="container qs-grid">
+    <div class="qs-side">
+      <h2 id="qs-title">Questions, answered from the docs.</h2>
+      <p>Every answer comes from the reference architecture and the research notes. Missing something? <a href={CONTACT_HREF}>Ask us</a>.</p>
+    </div>
+    <div class="qs-list">
+      {FAQS.map((f, i) => (
+        <details class="q" name="faq" open={i === 0}>
+          <summary><span class="q-t">{f.q}</span><span class="q-i" aria-hidden="true"></span></summary>
+          <div class="q-a"><p set:html={f.a} /></div>
+        </details>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .qs { border-top: 1px solid var(--rule); }
+  .qs-grid { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr); gap: 56px; align-items: start; }
+  .qs-side { position: sticky; top: calc(var(--nav-h) + 32px); }
+  .qs-side h2 { font-size: clamp(2.2rem, 4vw, 3.4rem); }
+  .qs-side p { margin-top: 18px; color: var(--ink-2); max-width: 40ch; }
+  .qs-list { border-top: 1px solid var(--rule-2); }
+  .q { border-bottom: 1px solid var(--rule); }
+  .q summary { list-style: none; display: grid; grid-template-columns: minmax(0, 1fr) 20px; gap: 12px; align-items: baseline; padding: 18px 0; cursor: pointer; }
+  .q summary::-webkit-details-marker { display: none; }
+  .q-t { font-weight: 600; font-size: 1.08rem; color: var(--ink); }
+  .q summary:hover .q-t { color: var(--blue); }
+  .q-i { position: relative; width: 14px; height: 14px; align-self: center; }
+  .q-i::before, .q-i::after { content: ''; position: absolute; left: 0; top: 6px; width: 14px; height: 2px; background: var(--ink); transition: transform .2s var(--ease-out); }
+  .q-i::after { transform: rotate(90deg); }
+  .q[open] .q-i::after { transform: rotate(0deg); }
+  .q-a { padding: 0 32px 22px 0; color: var(--ink-2); max-width: 72ch; }
+  .q-a :global(code) { font-size: 0.8em; }
+  @media (max-width: 1080px) {
+    .qs-grid { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+    .qs-side { position: static; }
+  }
+  @media (max-width: 640px) {
+    .q-a { padding: 0 0 20px 0; }
+  }
+</style>

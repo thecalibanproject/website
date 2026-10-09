@@ -1,0 +1,94 @@
+---
+import { CONTACT_EMAIL, CONTACT_HREF, COPYRIGHT, PLATFORM_LINKS } from '../config';
+import { RESEARCH } from '../data/research';
+
+const columns = [
+  { title: 'Platform', links: PLATFORM_LINKS.map((l) => ({ label: l.label, href: l.href })) },
+  {
+    title: 'Architecture',
+    links: [
+      { label: 'Overview', href: '/architecture/' },
+      { label: 'Reference architecture', href: '/architecture/reference/' },
+      { label: 'Repos & conventions', href: '/architecture/repos-and-conventions/' },
+      { label: 'Deployment', href: '/deployment/' },
+      { label: 'Air-gapped install', href: '/deployment/#air-gap' },
+    ],
+  },
+  {
+    title: 'Developers',
+    links: [
+      { label: 'API surface', href: '/developers/#api' },
+      { label: 'Request extension', href: '/developers/#extension' },
+      { label: 'SDKs (Apache-2.0)', href: '/developers/#sdks' },
+      { label: 'Licences', href: '/developers/#licences' },
+    ],
+  },
+  {
+    title: 'Research',
+    links: [
+      { label: 'All notes', href: '/research/' },
+      ...RESEARCH.slice(0, 4).map((r) => ({ label: `${r.num} · ${r.short.split(/[,:(]/)[0].trim()}`, href: `/research/${r.slug}/` })),
+    ],
+  },
+  {
+    title: 'Brand',
+    links: [
+      { label: 'The name', href: '/brand/#name' },
+      { label: 'Logo', href: '/brand/#logo' },
+      { label: 'Colour tokens', href: '/brand/#colour' },
+      { label: 'Downloads', href: '/brand/#downloads' },
+    ],
+  },
+];
+---
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a href="/" aria-label="Caliban home" class="footer-logo"><img src="/brand/logo-white.svg" alt="Caliban" width="130" height="36" loading="lazy" /></a>
+        <p>Bring the models to your data. One endpoint for every model, grounded in your ontology, private by default, running on your own hardware.</p>
+        <a href={CONTACT_HREF} class="footer-mail">{CONTACT_EMAIL}</a>
+      </div>
+      <nav class="footer-cols" aria-label="Footer">
+        {columns.map((c) => (
+          <div class="footer-col">
+            <h2>{c.title}</h2>
+            <ul>
+              {c.links.map((l) => <li><a href={l.href}>{l.label}</a></li>)}
+            </ul>
+          </div>
+        ))}
+      </nav>
+    </div>
+    <div class="footer-bottom">
+      <p>{COPYRIGHT}</p>
+      <p class="footer-note">Caliban core, console and deployment tooling are proprietary. The TypeScript and Python SDKs are Apache-2.0. Research figures on this site are published third-party results, linked to their sources; latency figures marked “target” are design targets, not measurements.</p>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .site-footer { background: var(--scope-0); color: var(--readout-2); padding-block: 72px 32px; font-size: 0.95rem; border-top: 1px solid var(--scope-line-2); }
+  .footer-top { display: grid; grid-template-columns: minmax(240px, 330px) 1fr; gap: 64px; }
+  .footer-logo { display: inline-flex; }
+  .footer-logo img { height: 34px; width: auto; }
+  .footer-brand p { margin-top: 18px; line-height: 1.6; max-width: 36ch; }
+  .footer-mail { display: inline-block; margin-top: 16px; color: var(--target); font-family: var(--mono); font-size: 0.8rem; }
+  .footer-cols { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; border-left: 1px solid var(--scope-line); }
+  .footer-col { padding: 0 20px; border-right: 1px solid var(--scope-line); }
+  .footer-col h2 { color: var(--readout); font-family: var(--display); font-size: 0.95rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 16px; line-height: 1.2; }
+  .footer-col ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .footer-col a { color: var(--readout-2); text-decoration: none; }
+  .footer-col a:hover { color: #fff; text-decoration: underline; }
+  .footer-bottom { margin-top: 64px; padding-top: 22px; border-top: 1px solid var(--scope-line); display: flex; gap: 32px; justify-content: space-between; align-items: flex-start; }
+  .footer-bottom p:first-child { color: var(--readout); white-space: nowrap; font-size: 0.9rem; }
+  .footer-note { max-width: 760px; font-size: 0.82rem; line-height: 1.55; color: var(--readout-3); }
+  @media (max-width: 1080px) {
+    .footer-top { grid-template-columns: 1fr; gap: 40px; }
+    .footer-cols { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 32px; }
+  }
+  @media (max-width: 640px) {
+    .footer-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .footer-bottom { flex-direction: column; }
+  }
+</style>

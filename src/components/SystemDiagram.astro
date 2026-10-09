@@ -1,0 +1,184 @@
+---
+// System overview: control plane, the data-plane binary with its 14 stages, stores, datasources and model providers.
+// Drawn from docs/architecture/caliban-reference-architecture.md §3 and repos-and-conventions.md.
+const cp = ['Tenants · API keys', 'BYOK vault (sealed)', 'Policies', 'Model registry', 'Ontology studio', 'Connectors', 'Node registry', 'Evals', 'Usage & billing', 'Audit chain'];
+const rows: [string, string, boolean][][] = [
+  [['1', 'Auth', false], ['2', 'Tenant policy', false], ['3', 'Quota reserve', false], ['4', 'Parse → IR', false]],
+  [['5', 'Anonymize', true], ['6', 'Cache T1 → T2', true], ['7', 'Classify + route', true], ['8', 'Ground', true]],
+  [['9', 'Execute: call or node graph', false], ['10', 'Provider adapter', false], ['11', 'Stream', false]],
+  [['12', 'Rehydrate', true], ['13', 'Meter', false], ['14', 'Trace (OTel GenAI)', false]],
+];
+const DPX = 250, DPW = 710, PAD = 26, GAP = 18, RH = 50;
+const rowY = (i: number) => 268 + i * (RH + 18);
+const pills = rows.flatMap((row, i) => {
+  const w = (DPW - 2 * PAD - GAP * (row.length - 1)) / row.length;
+  return row.map(([n, label, key], j) => ({ n, label, key, x: DPX + PAD + j * (w + GAP), y: rowY(i), w }));
+});
+const stores = [
+  { name: 'Valkey', sub: 'quotas · rate limits' },
+  { name: 'Qdrant', sub: 'cache · RAG · kNN' },
+  { name: 'PII vault', sub: 'per-tenant keys' },
+  { name: 'Parquet replica', sub: 'queried by DataFusion' },
+];
+const SW = (DPW - 3 * 20) / 4;
+---
+<figure class="sysdiag">
+  <div class="sd-scroll" tabindex="0" role="region" aria-label="System overview diagram (scrolls sideways on small screens)">
+    <svg viewBox="0 0 1200 840" role="img" aria-labelledby="sd-title sd-desc" xmlns="http://www.w3.org/2000/svg">
+      <title id="sd-title">Caliban system overview</title>
+      <desc id="sd-desc">A control plane in Rust with a Postgres store pushes signed, versioned config snapshots to the data plane, a single Rust binary that runs fourteen stages on every request: auth, tenant policy, quota, parse, anonymize, cache, classify and route, ground, execute, provider adapter, stream, rehydrate, meter and trace. The data plane uses Valkey, Qdrant, the PII vault and a Parquet replica fed from customer datasources, and calls BYOK model providers or on-prem model pools.</desc>
+      <defs>
+        <marker id="sd-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#1D4ED8" /></marker>
+        <marker id="sd-arr-l" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#7CC4FF" /></marker>
+      </defs>
+
+      <!-- Postgres -->
+      <g class="box-light">
+        <rect x="20" y="40" width="200" height="110" />
+        <text x="40" y="74" class="t-strong">Postgres</text>
+        <text x="40" y="92" class="t-small">control-plane store</text>
+        <text x="40" y="122" class="t-small">tenants · keys · ontology</text>
+        <text x="40" y="138" class="t-small">routes · nodes · audit log</text>
+      </g>
+      <line x1="220" y1="95" x2="248" y2="95" class="ln" marker-end="url(#sd-arr)" marker-start="url(#sd-arr)" />
+
+      <!-- Control plane -->
+      <g class="box-light">
+        <rect x="250" y="20" width="930" height="150" />
+        <text x="272" y="50" class="t-cap">CONTROL PLANE</text>
+        <text x="410" y="50" class="t-small">caliban control-plane · Rust · admin API /api/v1 and web console on :8081</text>
+        {cp.map((c, i) => {
+          const w = (930 - 44 - 4 * 14) / 5;
+          const x = 272 + (i % 5) * (w + 14);
+          const y = 66 + Math.floor(i / 5) * 46;
+          return <g><rect x={x} y={y} width={w} height="34" class="cp-pill" /><text x={x + w / 2} y={y + 22} class="t-pill" text-anchor="middle">{c}</text></g>;
+        })}
+      </g>
+
+      <!-- Snapshot push -->
+      <line x1="605" y1="172" x2="605" y2="217" class="ln" marker-end="url(#sd-arr)" />
+      <text x="618" y="192" class="t-small">signed, versioned config snapshot (Ed25519)</text>
+      <text x="618" y="208" class="t-small">the data plane keeps serving the last good one: fail-static</text>
+
+      <!-- Clients -->
+      <g class="box-light">
+        <rect x="20" y="268" width="176" height="262" />
+        <text x="36" y="298" class="t-cap">CLIENT APPS</text>
+        {['OpenAI SDKs', 'Anthropic SDKs', 'MCP / A2A clients', 'Your apps and nodes'].map((c, i) => <g><rect x="34" y={314 + i * 48} width="148" height="36" class="cl-pill" /><text x="108" y={337 + i * 48} class="t-pill" text-anchor="middle">{c}</text></g>)}
+      </g>
+      <line x1="196" y1="293" x2="248" y2="293" class="ln" marker-end="url(#sd-arr)" />
+      <text x="203" y="284" class="t-tiny">HTTPS</text>
+      <line x1="250" y1="505" x2="198" y2="505" class="ln dashed" marker-end="url(#sd-arr)" />
+      <text x="210" y="522" class="t-tiny">SSE</text>
+
+      <!-- Data plane -->
+      <rect x={DPX} y="220" width={DPW} height="350" class="dp" />
+      <text x={DPX + PAD} y="250" class="t-cap on-dark">DATA PLANE</text>
+      <text x={DPX + 136} y="250" class="t-small on-dark-muted">caliban router · one signed Rust binary · OpenAI- and Anthropic-compatible on :8080</text>
+      {pills.map((p) => (
+        <g>
+          <rect x={p.x} y={p.y} width={p.w} height={RH} class="st" />
+          <rect x={p.x} y={p.y} width="34" height={RH} class={p.key ? 'st-code key' : 'st-code'} />
+          <text x={p.x + 17} y={p.y + RH / 2 + 4} class="t-num" text-anchor="middle">{String(p.n).padStart(2, '0')}</text>
+          <text x={p.x + 46} y={p.y + RH / 2 + 5} class="t-stage">{p.label}</text>
+        </g>
+      ))}
+      {rows.slice(0, -1).map((_, i) => <path d={`M ${DPX + DPW - PAD - 8} ${rowY(i) + RH} C ${DPX + DPW - PAD - 8} ${rowY(i) + RH + 12}, ${DPX + PAD + 8} ${rowY(i) + RH + 6}, ${DPX + PAD + 8} ${rowY(i + 1)}`} class="snake" marker-end="url(#sd-arr-l)" />)}
+
+      <!-- Providers -->
+      <g class="box-ice">
+        <rect x="990" y="268" width="190" height="262" />
+        <text x="1008" y="298" class="t-cap">MODEL PROVIDERS</text>
+        <text x="1008" y="324" class="t-strong">BYOK APIs</text>
+        <text x="1008" y="342" class="t-small">OpenAI, Anthropic, …</text>
+        <text x="1008" y="358" class="t-small">one upstream identity</text>
+        <text x="1008" y="374" class="t-small">per tenant, never pooled</text>
+        <line x1="1008" y1="392" x2="1162" y2="392" class="sep" />
+        <text x="1008" y="416" class="t-strong">On-prem pools</text>
+        <text x="1008" y="434" class="t-small">vLLM · SGLang · TEI</text>
+        <text x="1008" y="450" class="t-small">llama.cpp · Ollama</text>
+        <text x="1008" y="466" class="t-small">per-tenant cache_salt</text>
+        <text x="1008" y="500" class="t-tiny">egress deny-by-default</text>
+      </g>
+      <line x1="960" y1={rowY(2) + RH / 2} x2="988" y2={rowY(2) + RH / 2} class="ln" marker-end="url(#sd-arr)" marker-start="url(#sd-arr)" />
+
+      <!-- Stores -->
+      {stores.map((s, i) => {
+        const x = DPX + i * (SW + 20);
+        return (
+          <g class="box-light">
+            <line x1={x + SW / 2} y1="572" x2={x + SW / 2} y2="608" class="ln" marker-end="url(#sd-arr)" marker-start="url(#sd-arr)" />
+            <rect x={x} y="610" width={SW} height="78" />
+            <text x={x + 18} y="640" class="t-strong">{s.name}</text>
+            <text x={x + 18} y="672" class="t-small">{s.sub}</text>
+          </g>
+        );
+      })}
+
+      <!-- Datasources -->
+      <g class="box-ice">
+        <rect x={DPX} y="738" width={DPW} height="82" />
+        <text x={DPX + 20} y="766" class="t-cap">CUSTOMER DATASOURCES</text>
+        <text x={DPX + 20} y="792" class="t-small">MongoDB (system of record) · SQL warehouses · APIs and SaaS · files and lakes · MCP servers (untrusted tier)</text>
+        <text x={DPX + 20} y="810" class="t-tiny">read-only users · policy injected by the compiler · change streams feed the replica</text>
+      </g>
+      <line x1={DPX + 3 * (SW + 20) + SW / 2} y1="736" x2={DPX + 3 * (SW + 20) + SW / 2} y2="690" class="ln" marker-end="url(#sd-arr)" />
+      <text x={DPX + 3 * (SW + 20) + SW / 2 + 8} y="718" class="t-tiny">CDC</text>
+      <path d={`M ${DPX + 2 * (SW + 20) - 10} 572 V 736`} class="ln dashed" marker-end="url(#sd-arr)" />
+      <text x={DPX + 2 * (SW + 20) - 4} y="718" class="t-tiny">native lane</text>
+
+      <!-- Telemetry note -->
+      <g class="box-light">
+        <rect x="990" y="610" width="190" height="210" />
+        <text x="1008" y="638" class="t-cap">OUT OF BAND</text>
+        <text x="1008" y="664" class="t-strong">Usage events</text>
+        <text x="1008" y="682" class="t-small">memory ring + JSONL WAL</text>
+        <text x="1008" y="712" class="t-strong">OTel GenAI spans</text>
+        <text x="1008" y="730" class="t-small">off unless you set an</text>
+        <text x="1008" y="746" class="t-small">OTLP endpoint; content</text>
+        <text x="1008" y="762" class="t-small">is never recorded</text>
+        <text x="1008" y="796" class="t-tiny">nothing calls home</text>
+      </g>
+    </svg>
+  </div>
+  <figcaption class="sd-cap">
+    <span class="sd-legend"><i class="lg-key"></i>Stages with a dedicated subsystem</span>
+    <span class="sd-legend"><i class="lg-st"></i>Other stages</span>
+    <span class="sd-hint">Scroll sideways to see the whole diagram.</span>
+  </figcaption>
+</figure>
+
+<style>
+  .sysdiag { margin: 0; }
+  .sd-scroll { overflow-x: auto; background: var(--strip); border: 1px solid var(--rule); padding: 16px; }
+  .sd-scroll:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .sd-scroll svg { display: block; width: 100%; min-width: 940px; height: auto; font-family: var(--sans); }
+  .box-light > rect { fill: #FFFFFF; stroke: var(--rule); stroke-width: 1; }
+  .box-ice > rect { fill: var(--strip-2); stroke: var(--rule-2); stroke-width: 1; }
+  .cp-pill, .cl-pill { fill: var(--paper); stroke: var(--rule); }
+  .dp { fill: #06122A; stroke: #1D4ED8; stroke-width: 2; }
+  .st { fill: #0A1A39; stroke: rgba(124, 196, 255, 0.3); }
+  .st-code { fill: #0F2448; }
+  .st-code.key { fill: #1D4ED8; }
+  .ln { stroke: #1D4ED8; stroke-width: 1.5; fill: none; }
+  .ln.dashed { stroke-dasharray: 5 5; }
+  .snake { stroke: rgba(124, 196, 255, 0.55); stroke-width: 1.2; fill: none; stroke-dasharray: 3 4; }
+  .sep { stroke: var(--rule-2); }
+  text { fill: #0A1430; }
+  .t-cap { font-family: var(--display); font-size: 13.5px; font-weight: 700; letter-spacing: 0.08em; fill: #1D4ED8; }
+  .t-cap.on-dark { fill: #7CC4FF; }
+  .t-strong { font-size: 14.5px; font-weight: 600; }
+  .t-small { font-size: 12.5px; fill: #4F5D7C; }
+  .t-tiny { font-family: var(--mono); font-size: 10px; fill: #4F5D7C; }
+  .on-dark-muted { fill: #A9BEDF; }
+  .t-pill { font-size: 12.5px; font-weight: 500; fill: #26324F; }
+  .t-num { font-family: var(--mono); font-size: 10.5px; font-weight: 600; fill: #FFFFFF; }
+  .t-stage { font-size: 13.5px; font-weight: 600; fill: #E8F1FF; }
+  .sd-cap { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; margin-top: 12px; font-size: 0.86rem; color: var(--ink-3); }
+  .sd-legend { display: inline-flex; align-items: center; gap: 8px; }
+  .sd-legend i { width: 14px; height: 14px; display: inline-block; }
+  .lg-key { background: var(--blue); }
+  .lg-st { background: var(--scope-3); }
+  .sd-hint { display: none; }
+  @media (max-width: 980px) { .sd-hint { display: inline; margin-left: auto; } .sd-scroll { padding: 10px; } }
+</style>

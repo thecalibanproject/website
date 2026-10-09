@@ -1,0 +1,63 @@
+---
+// Before/after of a prompt passing caliban-pii, and the rehydrated response stream.
+// Originals are outlined with their entity type; surrogates are set in target blue.
+---
+<figure class="pi" aria-label="Before and after pseudonymization of a prompt, and the rehydrated response stream">
+  <div class="pi-head"><span class="cap">caliban-pii · request inspector</span></div>
+  <div class="pi-grid">
+    <div class="pi-pane">
+      <p class="cap pi-label">Your app sends</p>
+      <p class="pi-text"><span class="ent"><span class="ent-v">Sarah Johnson</span><span class="ent-t">PERSON</span></span> (<span class="ent"><span class="ent-v">sarah.j@acme.com</span><span class="ent-t">EMAIL</span></span>) asked <span class="ent"><span class="ent-v">Kevin Park</span><span class="ent-t">PERSON</span></span> to visit <span class="ent"><span class="ent-v">Denver</span><span class="ent-t">LOCATION</span></span> with <span class="ent"><span class="ent-v">Sarah Johnson</span><span class="ent-t">PERSON</span></span>'s team.</p>
+    </div>
+    <div class="pi-pane out">
+      <p class="cap pi-label">The external model sees</p>
+      <p class="pi-text"><span class="sur">Elena Moreau</span> (<span class="sur">priya.novak42@example.net</span>) asked <span class="sur">Mateo Lindqvist</span> to visit <span class="sur">Castlemere</span> with <span class="sur">Elena Moreau</span>'s team.</p>
+    </div>
+  </div>
+  <ul class="pi-meta">
+    <li><span class="datum"><b>4</b> entities</span> · L0 patterns + L1 NER</li>
+    <li>scope: <span class="datum">session</span></li>
+    <li>vault: per-tenant KEK</li>
+    <li>same person → same surrogate</li>
+  </ul>
+  <div class="pi-stream">
+    <p class="cap pi-label">Response stream, rehydrated with hold-back</p>
+    <p class="pi-row"><span class="pi-k">MODEL</span><code>Sure. <span class="sur">Elena Moreau</span> should brief the team first.</code></p>
+    <p class="pi-row client"><span class="pi-k">CLIENT</span><code>Sure. <span class="restored">Sarah Johnson</span> should brief the team first.</code></p>
+  </div>
+  <figcaption class="pi-foot">Illustrative surrogates drawn from caliban-pii’s pools; real values are keyed per tenant and scope. Secrets are blocked, never pseudonymized.</figcaption>
+</figure>
+
+<style>
+  .pi { margin: 0; color: var(--readout); }
+  .pi-head { padding-bottom: 12px; border-bottom: 1px solid var(--scope-line-2); }
+  .pi-head .cap { color: var(--readout-3); }
+  .pi-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1px; margin-top: 12px; background: var(--scope-line-2); border: 1px solid var(--scope-line-2); }
+  .pi-pane { background: var(--scope-2); padding: 14px; min-width: 0; }
+  .pi-pane.out { background: var(--scope-1); }
+  .pi-label { color: var(--readout-3); font-size: 0.74rem; margin-bottom: 10px; }
+  .pi-text { font-size: 0.95rem; line-height: 2.1; color: var(--readout-2); }
+  .ent { display: inline; white-space: nowrap; }
+  .ent-v { color: var(--readout); padding: 1px 4px; box-shadow: inset 0 0 0 1px var(--readout-3); }
+  .ent-t { font-family: var(--mono); font-size: 0.56rem; font-weight: 600; letter-spacing: 0.04em; color: var(--scope-1); background: var(--readout-2); padding: 1px 3px; margin-left: 2px; vertical-align: 2px; }
+  .sur { color: var(--target); font-weight: 600; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.22em; overflow-wrap: anywhere; }
+  .pi-meta { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; border: 1px solid var(--scope-line-2); border-top: 0; }
+  .pi-meta li { padding: 7px 12px; color: var(--readout-2); font-size: 0.84rem; line-height: 1.4; }
+  .pi-meta li + li { border-left: 1px solid var(--scope-line); }
+  .pi-meta .datum { font-size: 0.72rem; color: var(--readout); }
+  .pi-meta b { color: var(--target); }
+  .pi-stream { margin-top: 12px; }
+  .pi-row { display: grid; grid-template-columns: 70px minmax(0, 1fr); border: 1px solid var(--scope-line); background: var(--scope-2); }
+  .pi-row + .pi-row { margin-top: 3px; }
+  .pi-k { background: var(--scope-3); color: var(--readout-2); font-family: var(--mono); font-weight: 600; font-size: 0.66rem; padding: 8px 9px; }
+  .pi-row.client .pi-k { background: var(--blue); color: #fff; }
+  .pi-row code { background: none; padding: 8px 10px; color: var(--readout-2); font-size: 0.72rem; line-height: 1.6; border-left: 1px solid var(--scope-line); }
+  .restored { color: #fff; font-weight: 600; box-shadow: inset 0 0 0 1px var(--readout-2); padding: 0 3px; }
+  .pi-foot { margin-top: 10px; color: var(--readout-3); font-size: 0.82rem; line-height: 1.5; }
+  @media (max-width: 640px) {
+    .pi-grid { grid-template-columns: minmax(0, 1fr); }
+    .pi-meta li + li { border-left: 0; }
+    .pi-meta li { width: 100%; border-top: 1px solid var(--scope-line); }
+    .pi-meta li:first-child { border-top: 0; }
+  }
+</style>

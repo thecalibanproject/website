@@ -1,0 +1,404 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import CodeTabs from '../components/CodeTabs.astro';
+import Close from '../components/air/Close.astro';
+import { readOpenApi } from '../lib/openapi';
+import { CURL, TS_SDK, TS_OPENAI, PY_SDK, PY_OPENAI, ANTHROPIC_PY, EXTENSION } from '../data/samples';
+
+const api = readOpenApi();
+const data = api.operations.filter((o) => o.plane === 'data');
+const control = api.operations.filter((o) => o.plane === 'control');
+const groups = [
+  { id: 'data-plane', title: 'Data plane', port: '8080', note: 'OpenAI-compatible inference with Caliban extensions. Authenticate with a tenant key (cal_…).', ops: data },
+  { id: 'control-plane', title: 'Control plane', port: '8081', note: 'The admin API used by the web console and the SDKs. Authenticate with the admin token.', ops: control },
+];
+
+const headerNotes: Record<string, string> = {
+  'x-caliban-request-id': 'Correlates the response with traces, usage events and audit records.',
+  'x-caliban-routed-model': 'The model that actually answered, after routing and fallbacks.',
+  'x-caliban-cache': 'Whether the exact cache served the response.',
+  'x-caliban-pii-entities': 'How many personal-data entities were pseudonymized in the request.',
+  'x-caliban-cost-usd': 'Cost of this request in USD. Non-streaming only; absent when the model has no price.',
+  'request-id': 'Anthropic-style request id, sent on /v1/messages.',
+};
+
+const limits = [
+  ['requests_per_minute', 'GCRA request rate per tenant (bursts up to the per-minute value)'],
+  ['key_requests_per_minute', 'The same, per API key'],
+  ['tokens_per_minute', 'Token bucket refilling continuously over a minute'],
+  ['tokens_per_day', 'Tokens per UTC day'],
+  ['usd_per_day', 'Spend per UTC day (needs model prices)'],
+];
+
+const limitsToml = `# caliban.toml: all fields optional; unset = unlimited
+[limits]
+requests_per_minute = 600        # GCRA, per tenant
+key_requests_per_minute = 120    # GCRA, per API key
+tokens_per_minute = 400000       # reserved: prompt estimate + max_tokens, settled to actual usage
+tokens_per_day = 20000000        # per UTC day
+usd_per_day = 50.0               # per UTC day (needs model prices)
+
+[limits.tenants.acme]            # per-tenant overrides
+requests_per_minute = 1200`;
+
+const err429 = `HTTP/1.1 429 Too Many Requests
+retry-after: <seconds>
+x-caliban-ratelimit-scope: tokens_per_minute
+
+# /v1/chat/completions (OpenAI shape)
+{"error":{"type":"rate_limited","code":"tokens_per_minute", …}}
+
+# /v1/messages (Anthropic shape)
+{"type":"error","error":{"type":"rate_limit_error", …}}`;
+
+const anthropicCurl = `curl localhost:8080/v1/messages \\
+  -H "x-api-key: cal_…" -H "anthropic-version: 2023-06-01" -H 'content-type: application/json' \\
+  -d '{"model":"caliban/auto","max_tokens":512,
+       "messages":[{"role":"user","content":"Summarise Q3 sales"}],
+       "caliban":{"pii":"reversible"}}'`;
+
+const methodClass = (m: string) => `m-${m.toLowerCase()}`;
+const pad = (n: number) => String(n).padStart(2, '0');
+---
+<Base title="Developers" description="Point any OpenAI or Anthropic SDK at Caliban. The API reference, generated from core/api/openapi.yaml, the caliban request extension, x-caliban response headers, rate limits and the Apache-2.0 SDKs.">
+  <PageHero
+    crumbs={[{ label: 'Developers' }]}
+    title="Change the base URL. Keep your SDK."
+    lead="Caliban speaks the OpenAI wire protocol and the Anthropic Messages API. Point any SDK at it with a tenant key, and optionally add a caliban object to the body for privacy, caching, datasources, nodes and budgets."
+  >
+    <Fragment slot="actions">
+      <a class="btn btn-primary" href="#api">API reference</a>
+      <a class="btn btn-secondary" href="#sdks">SDK examples</a>
+    </Fragment>
+    <div slot="visual" class="qs">
+      <p class="cap qs-label">Quick start</p>
+      <CodeTabs id="qs-tabs" tabs={[
+        { label: 'curl', code: CURL, lang: 'bash' },
+        { label: 'Python (openai)', code: PY_OPENAI, lang: 'python' },
+        { label: 'Anthropic SDK', code: ANTHROPIC_PY, lang: 'python' },
+      ]} />
+      <p class="qs-note">OpenAI SDKs use <code>http://&lt;host&gt;:8080/v1</code>; Anthropic SDKs use <code>http://&lt;host&gt;:8080</code>. Both take a <code>cal_…</code> key.</p>
+    </div>
+  </PageHero>
+
+  <section class="section paper" id="api" aria-labelledby="api-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="api-title">{api.operations.length} operations across two planes</h2>
+        <p>Generated at build time from <code>core/api/openapi.yaml</code> ({api.title} {api.version}, OpenAPI {api.openapi}), the contract shared by the web console and both SDKs.</p>
+      </div>
+      <label class="api-filter">
+        <span class="cap">Filter</span>
+        <input type="search" placeholder="models, ontology, post…" autocomplete="off" data-api-q aria-describedby="api-count" />
+        <span class="datum api-count" id="api-count" aria-live="polite" data-api-count>{api.operations.length} operations</span>
+      </label>
+      {groups.map((g) => (
+        <div class="api-group" id={g.id}>
+          <div class="api-gh">
+            <h3 class="strip-title">{g.title}</h3>
+            <span class="datum api-port">:{g.port}</span>
+            <span class="datum api-n">{pad(g.ops.length)} ops</span>
+            <p>{g.note}</p>
+          </div>
+          <div class="ops-head cap" aria-hidden="true"><span>Method</span><span>Path</span><span>Summary</span><span>Tag</span><span>Auth</span></div>
+          <ol class="ops" aria-label={`${g.title} operations`}>
+            {g.ops.map((o) => (
+              <li class="op" data-api-row={`${o.method} ${o.path} ${o.summary} ${o.tag} ${o.auth}`.toLowerCase()}>
+                <span class:list={['op-m', methodClass(o.method)]}>{o.method}</span>
+                <code class="op-path">{o.path}</code>
+                <span class="op-sum">{o.summary}</span>
+                <span class="op-tag datum">{o.tag}</span>
+                <span class="op-auth">{o.auth}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ))}
+      <p class="api-empty" hidden data-api-empty>No operations match that filter.</p>
+      <p class="callout api-gaps"><span class="callout-k">Gaps</span><span>Also on the data plane, outside the contract: <code>GET /healthz</code> and <code>GET /metrics</code>. Known gaps: no <code>Idempotency-Key</code> yet (SDKs must not retry non-idempotent POSTs on 502), no delete endpoints for tenants, API keys, datasources and nodes, and no node run endpoint.</span></p>
+    </div>
+  </section>
+
+  <section class="section scope" id="extension" aria-labelledby="ext-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="ext-title">One optional object, ignored by clients that don’t know it</h2>
+        <p>Add <code>caliban</code> to any OpenAI-compatible body, or to an Anthropic Messages body. Fields from <code>components.schemas.CalibanExtension</code>:</p>
+      </div>
+      <div class="split split-wide">
+        <dl class="ledger ext">
+          {api.extension.map((f) => (
+            <div>
+              <dt><code>{f.name}</code><span class="datum ext-type">{f.values ? f.values.join(' | ') : f.type}</span></dt>
+              <dd>{f.description ?? ''}{f.default !== undefined && <span class="ext-def">default <code>{f.default}</code></span>}</dd>
+            </div>
+          ))}
+        </dl>
+        <div class="ext-side">
+          <CodeTabs id="ext-tabs" tabs={[{ label: 'Request body', code: EXTENSION, lang: 'json' }]} />
+          <div class="virt">
+            <h3 class="strip-title">Virtual models</h3>
+            <dl class="ledger virt-l">
+              <div><dt><code>caliban/auto</code></dt><dd>Lets the router decide.</dd></div>
+              <div><dt><code>&lt;tenant-alias&gt;</code></dt><dd>Resolved by tenant policy.</dd></div>
+              <div><dt>Any other id</dt><dd>Must exist in the tenant’s model registry.</dd></div>
+            </dl>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section paper" id="headers" aria-labelledby="hdr-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="hdr-title">Every answer says where it came from</h2>
+        <p>All of them are CORS-exposed for browser clients. Read them with <code>.withResponse()</code> in the OpenAI SDK, or from the response metadata of the Caliban SDKs.</p>
+      </div>
+      <ol class="hdrs">
+        {api.headers.map((h) => (
+          <li>
+            <code class="hdr-name">{h.name}</code>
+            <span class="hdr-type datum">{h.values ? h.values.join(' | ') : h.type}</span>
+            <p>{headerNotes[h.name] ?? h.description ?? ''}</p>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <section class="section scope" id="anthropic" aria-labelledby="anth-title">
+    <div class="container">
+      <div class="head solo">
+        <h2 id="anth-title"><code class="hcode">/v1/messages</code> runs through the same pipeline</h2>
+      </div>
+      <div class="split split-wide">
+        <ul class="checks">
+          <li><strong>Same pipeline</strong> as Chat Completions: auth, rate limits, PII protect and rehydrate, routing, cache, fallbacks and metering.</li>
+          <li><strong>Native passthrough</strong> when the routed model’s provider is Anthropic: <code>cache_control</code> breakpoints are kept, <code>anthropic-beta</code> is forwarded, and PII is applied to text blocks.</li>
+          <li><strong>Translation</strong> for every other model, request and response, including stream events (<code>message_start</code>, <code>content_block_delta</code>, <code>message_stop</code>…).</li>
+          <li><strong>Anthropic error shape</strong>: <code>{'{'}"type":"error","error":{'{'}"type","message"{'}'}{'}'}</code>, and <code>POST /v1/messages/count_tokens</code> gives an approximate count.</li>
+        </ul>
+        <CodeTabs id="anth-tabs" tabs={[
+          { label: 'Python (anthropic)', code: ANTHROPIC_PY, lang: 'python' },
+          { label: 'curl', code: anthropicCurl, lang: 'bash' },
+        ]} />
+      </div>
+    </div>
+  </section>
+
+  <section class="section paper" id="rate-limits" aria-labelledby="rl-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="rl-title">Reserve before the call, settle after</h2>
+        <p>Before the upstream call, Caliban reserves the prompt estimate (about 4 bytes per token) plus <code>max_tokens</code> (1024 when unset) and the matching cost, then settles to the usage the upstream reports, streams included.</p>
+      </div>
+      <div class="split">
+        <div>
+          <p class="rl-429">Exceeding a limit returns <strong>429</strong> with <code>retry-after</code> and <code>x-caliban-ratelimit-scope</code>, both CORS-exposed.</p>
+          <dl class="ledger rl" aria-label="Rate-limit fields">
+            {limits.map(([a, b]) => <div><dt><code>{a}</code></dt><dd>{b}</dd></div>)}
+          </dl>
+          <p class="callout rl-note"><span class="callout-k">State</span><span>In memory per router process (exact for standalone). A shared Valkey store for several routers is next; quota store failures fail open.</span></p>
+        </div>
+        <CodeTabs id="rl-tabs" tabs={[
+          { label: '429 response', code: err429, lang: 'yaml' },
+          { label: '[limits] (TOML)', code: limitsToml, lang: 'toml' },
+        ]} />
+      </div>
+    </div>
+  </section>
+
+  <section class="section scope" id="sdks" aria-labelledby="sdk-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="sdk-title">Typed clients for TypeScript and Python, Apache-2.0</h2>
+        <p>Both wrap the OpenAI-compatible data plane with typed Caliban extensions, header metadata, streaming, retries and typed errors, plus an admin client for the control plane and node authoring types. Neither sends telemetry.</p>
+      </div>
+      <div class="sdk-grid">
+        <div class="sdk-side">
+          <ol class="strip-bay sdks">
+            <li class="strip sdk">
+              <span class="code-cell"><span>TS</span></span>
+              <div>
+                <h3 class="sdk-name"><code>@caliban/sdk</code></h3>
+                <p>TypeScript · Node 20+, Bun, Deno, browsers, edge</p>
+                <dl class="ledger sdk-l">
+                  <div><dt><code>CalibanClient</code></dt><dd>Data plane</dd></div>
+                  <div><dt><code>CalibanAdmin</code></dt><dd>Typed from the OpenAPI contract</dd></div>
+                  <div><dt><code>defineNode()</code></dt><dd>Typed from the node schema</dd></div>
+                </dl>
+              </div>
+            </li>
+            <li class="strip sdk">
+              <span class="code-cell"><span>PY</span></span>
+              <div>
+                <h3 class="sdk-name"><code>caliban-sdk</code></h3>
+                <p>Python 3.11+ · import as <code>caliban</code></p>
+                <dl class="ledger sdk-l">
+                  <div><dt><code>Caliban</code> / <code>AsyncCaliban</code></dt><dd>Data plane</dd></div>
+                  <div><dt><code>CalibanAdmin</code></dt><dd>Control plane</dd></div>
+                  <div><dt><code>caliban.evals</code></dt><dd>And the <code>caliban-eval</code> CLI</dd></div>
+                </dl>
+              </div>
+            </li>
+          </ol>
+          <p class="callout"><span class="callout-k">Not yet published</span><span>Neither package is published to a registry yet. Environment: <code>CALIBAN_API_KEY</code>, <code>CALIBAN_BASE_URL</code>, <code>CALIBAN_ADMIN_URL</code>, <code>CALIBAN_ADMIN_TOKEN</code>.</span></p>
+        </div>
+        <CodeTabs id="sdk-tabs" maxHeight={620} tabs={[
+          { label: 'TypeScript SDK', code: TS_SDK, lang: 'ts' },
+          { label: 'Python SDK', code: PY_SDK, lang: 'python' },
+          { label: 'openai (TS)', code: TS_OPENAI, lang: 'ts' },
+          { label: 'openai (Python)', code: PY_OPENAI, lang: 'python' },
+        ]} caption="From sdk-typescript/README.md and sdk-python/README.md." />
+      </div>
+    </div>
+  </section>
+
+  <section class="section paper" id="licences" aria-labelledby="lic-title">
+    <div class="container">
+      <div class="head solo">
+        <h2 id="lic-title">Open SDKs, proprietary platform</h2>
+      </div>
+      <ul class="rgrid lic" style="--n:3">
+        <li class="open">
+          <h3>SDKs</h3>
+          <span class="lic-k datum">Apache-2.0</span>
+          <p><code>sdk-typescript</code> (<code>@caliban/sdk</code>) and <code>sdk-python</code> (<code>caliban-sdk</code>). Copyright 2026 Elie Sfeir.</p>
+        </li>
+        <li>
+          <h3>Everything else</h3>
+          <span class="lic-k cap">Proprietary · all rights reserved</span>
+          <p><code>core</code>, <code>web</code>, <code>ml</code>, <code>deploy</code>, <code>docs</code> and this website. © 2026 Elie Sfeir.</p>
+        </li>
+        <li>
+          <h3>Redistributable on-prem</h3>
+          <span class="lic-k cap">Dependencies</span>
+          <p>Postgres, Qdrant (Apache-2.0), Valkey (BSD) and DataFusion (Apache-2.0). SSPL, BSL and non-commercial weights are not allowed in the default bundle.</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <Close />
+</Base>
+
+<script>
+  const q = document.querySelector<HTMLInputElement>('[data-api-q]');
+  const rows = [...document.querySelectorAll<HTMLElement>('[data-api-row]')];
+  const empty = document.querySelector<HTMLElement>('[data-api-empty]');
+  const count = document.querySelector<HTMLElement>('[data-api-count]');
+  q?.addEventListener('input', () => {
+    const terms = q.value.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    let n = 0;
+    rows.forEach((r) => {
+      const show = terms.every((t) => r.dataset.apiRow!.includes(t));
+      r.hidden = !show;
+      if (show) n++;
+    });
+    document.querySelectorAll<HTMLElement>('.api-group').forEach((g) => { g.hidden = !g.querySelector('[data-api-row]:not([hidden])'); });
+    if (count) count.textContent = `${n} ${n === 1 ? 'operation' : 'operations'}`;
+    if (empty) empty.hidden = n !== 0;
+  });
+</script>
+
+<style>
+  .qs-label { color: var(--readout-3); margin-bottom: 12px; }
+  .qs-note { margin-top: 12px; font-size: 0.88rem; color: var(--readout-2); line-height: 1.55; }
+
+  .api-filter { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; border: 1px solid var(--rule-2); background: var(--strip); padding: 0 14px; margin-bottom: 40px; }
+  .api-filter .cap { color: var(--ink-3); }
+  .api-filter input { border: 0; background: transparent; font: inherit; font-size: 1rem; padding: 13px 0; color: var(--ink); min-width: 0; }
+  .api-filter input:focus { outline: none; }
+  .api-filter:focus-within { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); }
+  .api-count { color: var(--ink-3); }
+
+  .api-group + .api-group { margin-top: 48px; }
+  .api-group[hidden] { display: none; }
+  .api-gh { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; padding-bottom: 12px; }
+  .api-gh .strip-title { font-size: 1.6rem; }
+  .api-port { color: var(--blue); font-weight: 600; }
+  .api-n { color: var(--ink-3); }
+  .api-gh p { flex-basis: 100%; color: var(--ink-2); font-size: 0.96rem; }
+  .ops-head, .op { display: grid; grid-template-columns: 76px minmax(0, 1.25fr) minmax(0, 1.5fr) minmax(0, 0.55fr) minmax(0, 0.7fr); }
+  .ops-head { border: 1px solid var(--rule); border-bottom: 0; background: var(--strip-2); color: var(--ink-3); }
+  .ops-head > span { padding: 8px 14px; }
+  .ops-head > span + span { border-left: 1px solid var(--rule); }
+  .ops { list-style: none; margin: 0; padding: 0; border: 1px solid var(--rule); border-bottom: 0; }
+  .op { background: var(--strip); border-bottom: 1px solid var(--rule); }
+  .op[hidden] { display: none; }
+  .op > * { padding: 10px 14px; min-width: 0; }
+  .op > * + * { border-left: 1px solid var(--rule); }
+  .op:hover { background: #fff; }
+  .op-m { font-family: var(--mono); font-weight: 600; font-size: 0.74rem; background: var(--blue); color: #fff; display: flex; align-items: center; }
+  .op-m.m-get { background: var(--strip-2); color: var(--ink); }
+  .op-m.m-delete { background: var(--blue-deep); }
+  .op-path { background: none; padding: 10px 14px; color: var(--blue-deep); font-weight: 600; font-size: 0.76rem; overflow-wrap: anywhere; }
+  .op-sum { color: var(--ink); font-size: 0.94rem; line-height: 1.45; }
+  .op-tag { color: var(--ink-3); font-size: 0.72rem; }
+  .op-auth { color: var(--ink-3); font-size: 0.86rem; line-height: 1.4; }
+  .api-empty { color: var(--ink-3); margin: 16px 0; }
+  .api-gaps { margin-top: 32px; }
+
+  .ext { --dt: minmax(0, 0.8fr); }
+  .ext > div { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); }
+  .ext dt { display: grid; gap: 4px; align-content: start; }
+  .ext dt code { width: max-content; max-width: 100%; font-weight: 600; }
+  .ext-type { color: var(--target); font-size: 0.72rem; overflow-wrap: anywhere; }
+  .ext dd { font-size: 0.94rem; line-height: 1.55; }
+  .ext-def { display: block; margin-top: 4px; font-size: 0.86rem; color: var(--readout-3); }
+  .ext-side { display: grid; gap: 28px; align-content: start; min-width: 0; }
+  .virt .strip-title { color: var(--readout); margin-bottom: 12px; }
+  .virt-l { --dt: 170px; }
+
+  .hdrs { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule-2); }
+  .hdrs li { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 0.6fr) minmax(0, 1.4fr); gap: 20px; align-items: baseline; padding: 14px 0; border-bottom: 1px solid var(--rule); }
+  .hdr-name { background: none; padding: 0; color: var(--blue-deep); font-weight: 600; font-size: 0.82rem; overflow-wrap: anywhere; }
+  .hdr-type { color: var(--ink); overflow-wrap: anywhere; }
+  .hdrs p { color: var(--ink-2); font-size: 0.96rem; }
+  .hcode { text-transform: none; font-size: 0.78em; background: var(--blue) !important; color: #fff !important; padding: 0.04em 0.3em; vertical-align: 0.06em; }
+
+  .rl-429 { color: var(--ink-2); margin-bottom: 20px; max-width: 60ch; }
+  .rl { --dt: 230px; }
+  .rl-note { margin-top: 24px; }
+
+  .sdk-grid { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: 32px; align-items: start; }
+  .sdk-side { display: grid; gap: 16px; min-width: 0; }
+  .sdks { list-style: none; margin: 0; padding: 0; }
+  .sdk { --cols: 64px minmax(0, 1fr); }
+  .sdk > div { padding: 16px 18px 18px; }
+  .sdk .code-cell { justify-content: flex-start; font-size: 0.9rem; }
+  .sdk-name code { background: none; padding: 0; color: var(--readout); font-size: 1rem; font-weight: 600; }
+  .sdk > div > p { margin-top: 4px; font-size: 0.9rem; }
+  .sdk-l { margin-top: 12px; --dt: minmax(0, 1fr); }
+  .sdk-l > div { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding: 8px 0; }
+  .sdk-l dd { font-size: 0.9rem; }
+
+  .lic .open { background: #fff; }
+  .lic-k { display: inline-block; margin-top: 10px; color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--rule-2); padding: 3px 8px; }
+  .lic .open .lic-k { background: var(--blue); color: #fff; box-shadow: none; font-weight: 600; }
+  .lic p code { font-size: 0.82em; }
+
+  @media (max-width: 1080px) {
+    .sdk-grid { grid-template-columns: minmax(0, 1fr); }
+    .ops-head { display: none; }
+    .ops { border-top: 1px solid var(--rule); }
+    .op { grid-template-columns: 64px minmax(0, 1fr) minmax(0, 1fr); }
+    .op-m { grid-row: 1 / 4; }
+    .op-path { grid-column: 2 / 4; }
+    .op-sum { grid-column: 2 / 4; border-top: 1px solid var(--rule); }
+    .op-tag, .op-auth { border-top: 1px solid var(--rule); }
+    .hdrs li { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  }
+  @media (max-width: 640px) {
+    .op { grid-template-columns: 64px minmax(0, 1fr); }
+    .op-m { font-size: 0.68rem; padding-inline: 8px; }
+    .op-m { grid-row: 1 / 5; }
+    .op-path, .op-sum, .op-tag, .op-auth { grid-column: 2; }
+    .op-tag { border-left: 1px solid var(--rule); }
+    .ext > div, .sdk-l > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+    .api-filter { grid-template-columns: auto minmax(0, 1fr); }
+    .api-count { display: none; }
+  }
+</style>

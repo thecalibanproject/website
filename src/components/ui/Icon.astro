@@ -1,0 +1,36 @@
+---
+// Minimal stroke icon set (24×24, currentColor) for the navigation only. No icon font or CDN.
+interface Props {
+  name: keyof typeof ICONS;
+  size?: number;
+  class?: string;
+  label?: string;
+}
+
+const ICONS = {
+  arrowRight: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  chevronDown: '<path d="m6 9 6 6 6-6"/>',
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+} as const;
+
+const { name, size = 24, class: className, label } = Astro.props;
+const body = ICONS[name];
+---
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  width={size}
+  height={size}
+  fill="none"
+  stroke="currentColor"
+  stroke-width="1.75"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  class={className}
+  role={label ? 'img' : undefined}
+  aria-label={label}
+  aria-hidden={label ? undefined : 'true'}
+  focusable="false"
+  set:html={body}
+/>

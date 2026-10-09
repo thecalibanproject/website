@@ -1,0 +1,290 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import EvidenceGrid from '../../components/EvidenceGrid.astro';
+import Timeline from '../../components/Timeline.astro';
+import CodeTabs from '../../components/CodeTabs.astro';
+import StatusTable from '../../components/StatusTable.astro';
+import NoteLinks from '../../components/NoteLinks.astro';
+import Close from '../../components/air/Close.astro';
+import { CQIR, PIPELINE, SQL } from '../../data/samples';
+import { crates } from '../../data/status';
+
+const evidence = [
+  {
+    value: '~10–16%', bar: { kind: 'span', values: [10.8, 16] }, label: 'Raw text-to-SQL on real enterprise schemas',
+    detail: 'BEAVER ~10.8% (GPT-5.2 agents) · EntSQL 15.9% · data.world insurance benchmark 16% zero-shot.',
+    sources: [{ label: 'BEAVER', href: 'https://arxiv.org/abs/2409.02038' }, { label: 'EntSQL', href: 'https://arxiv.org/abs/2606.03363' }, { label: 'Sequeda et al. 2023', href: 'https://arxiv.org/abs/2311.07509' }],
+  },
+  {
+    value: '54–72%', bar: { kind: 'span', values: [54, 72] }, label: 'The same questions over an ontology or knowledge graph',
+    detail: '54% over the KG representation; 72% with ontology-based query checking and repair.',
+    sources: [{ label: 'Sequeda et al. 2023', href: 'https://arxiv.org/abs/2311.07509' }, { label: 'Allemang 2024', href: 'https://arxiv.org/abs/2405.11706' }],
+  },
+  {
+    value: '98–100%', bar: { kind: 'span', values: [98, 100] }, label: 'In-scope questions on a governed semantic layer',
+    detail: 'vs 84.1–90.0% for text-to-SQL on the same modelled schema.',
+    caveat: 'Vendor blog, 11 questions × 20 runs. Out-of-scope questions error out instead of being silently wrong.',
+    sources: [{ label: 'dbt Labs 2026', href: 'https://docs.getdbt.com/blog/semantic-layer-vs-text-to-sql-2026' }],
+  },
+  {
+    value: '97.4% vs 55.3%', bar: { kind: 'pair', values: [55.3, 97.4] }, label: 'Bounded choices + deterministic compilation vs direct generation',
+    detail: '0 wrong executions in 114 runs for compiled plans, vs 29 for direct generation.',
+    caveat: 'Small evaluation (38 questions).',
+    sources: [{ label: 'SPC 2026', href: 'https://arxiv.org/abs/2608.16663' }],
+  },
+  {
+    value: '0.2% → 35.8%', bar: { kind: 'shift', values: [0.2, 35.8] }, label: 'Text-to-MQL on realistic MongoDB documents',
+    detail: 'Schema-only prompting vs the best published solver (schema-as-data grounding + execution repair).',
+    sources: [{ label: 'TEND v3', href: 'https://arxiv.org/abs/2502.11201' }],
+  },
+  {
+    value: '19,144 s vs 45.6 s', label: 'MongoDB vs DataFusion on Parquet, 43 analytic queries',
+    detail: 'ClickBench, same instance type. ClickHouse 17.8 s, DuckDB 26.3 s.',
+    caveat: 'The MongoDB result is a 2022 run with queries hand-adapted to indexes.',
+    sources: [{ label: 'ClickBench', href: 'https://github.com/ClickHouse/ClickBench/tree/main/mongodb' }],
+  },
+];
+
+const steps = [
+  { title: 'Connect and propose', body: 'A read-only user is verified, collections are introspected with stratified sampling, references are discovered by value overlap, and entities, embedded child entities and relations are proposed with <code>status = proposed</code>.' },
+  { title: 'Humans approve', body: 'Relations, metrics and policies <strong>always</strong> need human approval. The curation queue is sorted by query frequency × uncertainty.' },
+  { title: 'Retrieve, filtered by policy', body: 'Ontology elements are retrieved for the question after the caller’s policy has been applied, never before.' },
+  { title: 'The model emits CQIR', key: true, body: 'Typed JSON that names ontology ids only: metrics, dimensions, filters, order and limit. It never names a collection, a path or an operator.' },
+  { title: 'Validate', body: 'Every id exists in the published version, operators match types, timestamps are UTC half-open intervals, joins follow approved relations and fan-out is checked.' },
+  { title: 'Inject policy', key: true, body: 'Row predicates and column masks are added to the IR <em>before</em> a backend is chosen, so both lanes enforce the same policy. The prompt cannot opt out.' },
+  { title: 'Plan a lane', body: 'Native if freshness needs it, replication is forbidden, or <code>explain</code> shows an index scan under the native budget (default 1M documents examined). Otherwise the replica.' },
+  { title: 'Lower, lint and dry-run', body: 'Pipeline: stage and operator allow-list, no <code>$</code>-keys in literals, <code>$lookup</code> only on an indexed foreign field, at most 50 stages, then an <code>explain</code> gate. SQL: a single <code>SELECT</code>.' },
+  { title: 'Execute, check, or say “I don’t know”', body: 'Timeouts, a row cap and streaming Arrow. Answers carry <code>as_of</code>. On failure the error is explained in ontology terms for at most two repair rounds, then Caliban says it does not know. It never falls back to raw MQL.' },
+];
+
+const csm = [
+  { name: 'Entity', body: 'A business object, bound to a collection or table. Embedded arrays can be child entities.' },
+  { name: 'Attribute', body: 'A typed field bound to a path, with a PII class where it applies.' },
+  { name: 'Relation', body: 'An approved join path with declared cardinality.' },
+  { name: 'Metric', body: 'A governed aggregation such as gross revenue, with its grain.' },
+  { name: 'Dimension', body: 'What a metric can be grouped or filtered by.' },
+  { name: 'GlossaryTerm', body: 'Synonyms and business vocabulary for retrieval.' },
+  { name: 'Policy', body: 'Row predicates, column masks and PII classes.' },
+  { name: 'VerifiedQuery', body: 'Known-good questions and plans, used as fingerprints for result checks.' },
+];
+
+const lanesABC = [
+  { k: 'A', title: 'Metric compiler', body: 'For in-scope questions: the model fills a JSON plan constrained to retrieved ids, and the compiler builds the query.' },
+  { k: 'B', title: 'Validated SQL', body: 'Exploratory SQL over <em>logical</em> entity views only, then parsed, bound to the model, rewritten for policy and dry-run.' },
+  { k: 'C', title: 'Document RAG', body: 'Retrieval over documents, with entities linked back into the semantic model.' },
+];
+
+const feeds = [
+  ['Fully covered by approved metrics', 'Lane A with a small, cheap model: the task is a choice, not a query.'],
+  ['Needs unapproved joins, many entities or several sources', 'Lane B with a stronger reasoning model.'],
+  ['Touches PII-classed attributes or restricted sources', 'Force the anonymizer; restrict to on-prem or sovereign models.'],
+  ['Only document entities', 'The RAG lane.'],
+  ['No ontology hit', 'A clarifying question or “I don’t know”. Never free-form SQL over a raw schema.'],
+];
+---
+<Base title="Ontology" description="Caliban grounds data questions in a governed ontology: the model emits typed CQIR, and a deterministic Rust compiler lowers it to a linted MongoDB pipeline or to SQL over a CDC-fed replica.">
+  <PageHero
+    crumbs={[{ label: 'Platform' }, { label: 'Ontology' }]}
+    title="Ground every answer in a governed model of your data"
+    lead="On enterprise data, context matters more than the model. Caliban lets the model choose from a reviewed menu of metrics, dimensions and filters, and a deterministic Rust compiler writes, secures and checks the query. Free-form text-to-SQL or text-to-MQL is never executed."
+  >
+    <Fragment slot="actions">
+      <a class="btn btn-primary" href="#cqir">See the compiler output</a>
+      <a class="btn btn-secondary" href="/research/08-ontology-deep-dive-nosql/">Read research note 08</a>
+    </Fragment>
+    <figure slot="visual" class="flow" aria-label="A question becomes CQIR, the compiler validates it and injects policy, then lowers it to a MongoDB pipeline or to SQL on the replica; both return the same rows.">
+      <div class="f-strip">
+        <span class="f-k">ASK</span>
+        <p class="f-q">“Top categories by gross revenue, EU, Q3?”</p>
+      </div>
+      <div class="f-strip">
+        <span class="f-k">IR</span>
+        <p><span class="cap f-tag">LLM emits</span> <code>CQIR</code> <span class="f-sub">ontology ids only</span></p>
+      </div>
+      <div class="f-strip f-comp">
+        <span class="f-k">CMP</span>
+        <div>
+          <p class="f-title">caliban-ontology compiler</p>
+          <ol class="f-steps">
+            <li>Validate</li><li>Inject policy</li><li>Plan lane</li><li>Lower + lint</li>
+          </ol>
+        </div>
+      </div>
+      <div class="f-lanes">
+        <div class="f-strip">
+          <span class="f-k">NAT</span>
+          <p><span class="cap f-tag">Native lane</span><span class="f-name">MongoDB pipeline</span><span class="f-sub">read-only secondary · explain gate</span></p>
+        </div>
+        <div class="f-strip">
+          <span class="f-k">ACC</span>
+          <p><span class="cap f-tag">Accelerated lane</span><span class="f-name">SQL on the replica</span><span class="f-sub">change streams → Parquet → DataFusion</span></p>
+        </div>
+      </div>
+      <p class="f-out"><span class="status built">Tested</span>Same rows from both lanes in the integration test</p>
+    </figure>
+  </PageHero>
+
+  <EvidenceGrid
+    id="evidence"
+    title="The model is not the bottleneck on enterprise data. Context is."
+    lead="Different benchmarks and models, one consistent pattern: bounded choices over a curated semantic model beat free-form query generation, and MongoDB is not an analytics engine."
+    items={evidence}
+    notes={[{ label: 'note 03', href: '/research/03-ontology-and-datasource-layer/' }, { label: 'note 08', href: '/research/08-ontology-deep-dive-nosql/' }]}
+  />
+
+  <section class="section paper" aria-labelledby="how-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="how-title">The model picks. The compiler writes.</h2>
+        <p>The ontology states what flattening and free-form generation cannot recover: which embedded arrays are child entities, which ObjectIds are references, and which documents are subtypes.</p>
+      </div>
+      <div class="split how">
+        <div class="sticky-col">
+          <div class="rich">
+            <p>Permissions live in the compiler, not in the prompt. Every step after the model is deterministic Rust, and every answer can say which ontology elements and policies it used.</p>
+          </div>
+          <ul class="checks mt">
+            <li><strong>One IR, two backends.</strong> A native aggregation pipeline for fresh, selective questions; SQL over a change-stream-fed Parquet replica for heavy scans.</li>
+            <li><strong>Freshness is explicit.</strong> Accelerated answers carry the replica watermark (last applied <code>clusterTime</code>) as <code>as_of</code>.</li>
+            <li><strong>Minimal replication.</strong> Only approved, bound paths are copied, and a binding can forbid replication entirely.</li>
+          </ul>
+        </div>
+        <Timeline items={steps} label="From datasource to answer" />
+      </div>
+    </div>
+  </section>
+
+  <section class="section scope" id="cqir" aria-labelledby="cqir-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="cqir-title">One question, one IR, two lanes</h2>
+        <p>“Gross revenue by product category for EU customers in Q3 2026, top 5.” This is the fixture in <code>core/crates/caliban-ontology/src/compile</code>, and the pipeline and SQL are the exact outputs its tests expect.</p>
+      </div>
+      <div class="split split-wide">
+        <div>
+          <div class="rich">
+            <p>Two filters were never in the question. <code>status IN (paid, shipped)</code> comes from the governed definition of gross revenue, and <code>salesOrg IN (EU-1, EU-2)</code> is the caller’s row policy, injected by the compiler. Both appear in both lanes.</p>
+          </div>
+          <ul class="strip-bay lanes">
+            <li class="strip"><span class="code-cell">NAT</span><div><h3 class="strip-title">Native lane</h3><p>Tagged read-only secondary, <code>maxTimeMS</code>, <code>allowDiskUse: false</code>, an audit comment, a row cap and an <code>explain</code> gate that rejects collection scans under a strict policy.</p></div></li>
+            <li class="strip"><span class="code-cell">ACC</span><div><h3 class="strip-title">Accelerated lane</h3><p>Snapshot plus change streams into Arrow and Parquet, queried by DataFusion inside the same binary. If the oplog window is lost, the replica is marked stale and everything goes native.</p></div></li>
+          </ul>
+          <p class="callout mt"><span class="callout-k">Tested</span><span>Against a real MongoDB replica set, both lanes return the same rows for three query shapes, and the replica converges after inserts, updates (including <code>$push</code> into an embedded array) and deletes.</span></p>
+        </div>
+        <CodeTabs id="cqir-tabs" caption="Source: core/crates/caliban-ontology/src/compile (mod.rs fixture, mongo.rs and sql.rs tests)" maxHeight={560} tabs={[
+          { label: 'CQIR from the model', code: CQIR, lang: 'json' },
+          { label: 'MongoDB pipeline', code: PIPELINE, lang: 'json' },
+          { label: 'SQL on the replica', code: SQL, lang: 'sql' },
+        ]} />
+      </div>
+    </div>
+  </section>
+
+  <section class="section paper" aria-labelledby="csm-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="csm-title">A typed, versioned graph you can review</h2>
+        <p>The Caliban Semantic Model is stored in Postgres as append-only, versioned rows, serialized as YAML for review, and compiled into an in-memory graph that ships inside the signed data-plane snapshot.</p>
+      </div>
+      <ul class="rgrid csm" style="--n:4">
+        {csm.map((c) => <li><code class="csm-k">{c.name}</code><p>{c.body}</p></li>)}
+      </ul>
+      <h3 class="cap lanes-cap">Three lanes over one model</h3>
+      <ul class="strip-bay lanes-abc">
+        {lanesABC.map((l) => (
+          <li class="strip"><span class="code-cell"><span class="lane-l">Lane</span><span class="lane-k">{l.k}</span></span><div><h3 class="strip-title">{l.title}</h3><p set:html={l.body} /></div></li>
+        ))}
+      </ul>
+      <p class="fine">Import and export: MetricFlow/OSI, Cube and dbt. RDF/OWL only through Oxigraph for import and export; graph database servers were rejected (GPLv3, BSL or archived).</p>
+    </div>
+  </section>
+
+  <section class="section paper ruled" aria-labelledby="feeds-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="feeds-title">The ontology steers routing, privacy and caching</h2>
+        <p>Ontology coverage is a routing signal, PII classes drive the anonymizer’s dictionaries, and source epochs and ontology versions invalidate caches.</p>
+      </div>
+      <div class="split feeds">
+        <ul class="checks">
+          <li>Publishing a new ontology version invalidates plan-cache entries that reference changed elements.</li>
+          <li>A CDC watermark advance evicts result entries for the affected entity.</li>
+          <li>A policy change rotates the policy hash; result entries are never shared across policy hashes.</li>
+        </ul>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Ontology signals and routing decisions">
+          <table>
+            <thead><tr><th scope="col">Signal from ontology retrieval</th><th scope="col">Decision</th></tr></thead>
+            <tbody>{feeds.map(([a, b]) => <tr><td>{a}</td><td>{b}</td></tr>)}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-tight paper ruled" aria-labelledby="status-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="status-title" class="head-sm">What is built in core today</h2>
+        <p>“Built” means implemented and tested in <code>core/</code>; “in progress” means designed but not yet built. Still open: whether to fork, embed or compete with Spice.ai and WrenAI for connectors.</p>
+      </div>
+      <StatusTable rows={crates('caliban-ontology', 'caliban-connect', 'caliban-replica')} />
+    </div>
+  </section>
+
+  <NoteLinks slugs={['03-ontology-and-datasource-layer', '08-ontology-deep-dive-nosql']} platform="/platform/ontology/" lead="Every claim on this page comes from these two notes, which cite the original papers and benchmarks." />
+  <Close />
+</Base>
+
+<style>
+  .mt { margin-top: 24px; }
+  .ruled { border-top: 1px solid var(--rule); }
+  .sticky-col { position: sticky; top: calc(var(--nav-h) + 32px); }
+  .how { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); }
+
+  /* Hero instrument: the compile path as a stack of strips. */
+  .flow { margin: 0; display: grid; gap: 10px; }
+  .f-strip { position: relative; display: grid; grid-template-columns: 56px minmax(0, 1fr); background: var(--scope-1); border: 1px solid var(--scope-line-2); }
+  .f-strip + .f-strip::before, .f-lanes::before { content: ''; position: absolute; left: 27px; top: -11px; width: 1px; height: 10px; background: var(--target); }
+  .f-lanes { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .f-lanes .f-strip::before { display: none; }
+  .f-k { background: var(--scope-3); color: var(--readout); font-family: var(--mono); font-weight: 600; font-size: 0.72rem; padding: 12px 10px; }
+  .f-strip > p, .f-strip > div { padding: 11px 14px; border-left: 1px solid var(--scope-line); min-width: 0; color: var(--readout); font-size: 0.92rem; line-height: 1.45; }
+  .f-q { background: var(--strip); color: var(--ink) !important; font-weight: 500; }
+  .f-tag { color: var(--readout-3); font-size: 0.72rem; margin-right: 6px; }
+  .f-strip code { background: var(--blue); color: #fff; font-weight: 600; }
+  .f-sub { display: block; margin-top: 4px; font-size: 0.8rem; line-height: 1.4; color: var(--readout-3); }
+  .f-name { display: block; font-weight: 600; margin-top: 2px; }
+  .f-comp { border-color: var(--blue); }
+  .f-comp .f-k { background: var(--blue); color: #fff; }
+  .f-title { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; font-size: 1.1rem; }
+  .f-steps { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--scope-line-2); border: 1px solid var(--scope-line-2); }
+  .f-steps li { background: var(--scope-2); padding: 6px 8px; font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.78rem; line-height: 1.15; color: var(--readout-2); }
+  .f-out { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 10px; border-top: 1px solid var(--scope-line-2); color: var(--readout-2); font-size: 0.9rem; }
+
+  ul.strip-bay { list-style: none; margin: 0; padding: 0; }
+  .strip-bay.lanes { margin-top: 24px; }
+  .lanes .strip, .lanes-abc .strip { --cols: 72px minmax(0, 1fr); }
+  .lanes .strip p, .lanes-abc .strip p { margin-top: 6px; }
+
+  .csm-k { background: none; padding: 0; color: var(--blue-deep); font-size: 0.86rem; font-weight: 600; }
+  .lanes-cap { color: var(--ink-3); margin: 40px 0 12px; }
+  .lanes-abc { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .lanes-abc .code-cell { justify-content: space-between; }
+  .lane-l { font-size: 0.66rem; opacity: 0.8; }
+  .lane-k { font-family: var(--display); font-weight: 700; font-size: 2rem; line-height: 1; }
+  .fine { margin-top: 20px; color: var(--ink-3); font-size: 0.88rem; max-width: 90ch; }
+  .feeds { align-items: start; }
+
+  @media (max-width: 1080px) {
+    .sticky-col { position: static; }
+    .how { grid-template-columns: minmax(0, 1fr); }
+    .lanes-abc { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .f-lanes { grid-template-columns: minmax(0, 1fr); }
+    .f-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .f-strip { grid-template-columns: 48px minmax(0, 1fr); }
+    .f-strip + .f-strip::before, .f-lanes::before { left: 23px; }
+  }
+</style>

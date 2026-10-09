@@ -1,0 +1,83 @@
+---
+// The research index as a strip list (the same strips as the home page's Notes section):
+// one filter field (it matches titles, summaries and topic words; the topics are offered as
+// suggestions in the field itself) and one strip per note.
+import { RESEARCH } from '../data/research';
+
+interface Props { minutes?: Record<string, number> }
+const { minutes = {} } = Astro.props;
+const allTags = [...new Set(RESEARCH.flatMap((r) => r.tags))].sort();
+---
+<div class="rc" data-research>
+  <label class="rc-filter">
+    <span class="cap">Filter</span>
+    <input type="search" placeholder="Word or topic" autocomplete="off" list="rc-topics" data-q aria-describedby="rc-count" />
+    <datalist id="rc-topics">{allTags.map((t) => <option value={t} />)}</datalist>
+    <span class="datum rc-count" id="rc-count" aria-live="polite" data-count>{RESEARCH.length} notes</span>
+  </label>
+  <ol class="rc-list">
+    {RESEARCH.map((r) => (
+      <li data-text={`${r.num} ${r.short} ${r.blurb} ${r.tags.join(' ')}`.toLowerCase()}>
+        <a href={`/research/${r.slug}/`} class="rc-note strip-link">
+          <span class="rc-code">{r.num}</span>
+          <span class="rc-title">{r.short}</span>
+          <span class="rc-blurb">{r.blurb}</span>
+          <span class="rc-meta">
+            {minutes[r.slug] && <span class="rc-min datum">{minutes[r.slug]} min</span>}
+            <span class="rc-tags">{r.tags.join(' · ')}</span>
+          </span>
+        </a>
+      </li>
+    ))}
+  </ol>
+  <p class="rc-empty" hidden data-empty>No notes match that filter.</p>
+</div>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-research]').forEach((root) => {
+    const input = root.querySelector<HTMLInputElement>('[data-q]');
+    const items = [...root.querySelectorAll<HTMLElement>('li[data-text]')];
+    const count = root.querySelector<HTMLElement>('[data-count]');
+    const empty = root.querySelector<HTMLElement>('[data-empty]');
+    const apply = () => {
+      const terms = (input?.value ?? '').toLowerCase().trim().split(/\s+/).filter(Boolean);
+      let n = 0;
+      items.forEach((li) => {
+        const show = terms.every((t) => li.dataset.text!.includes(t));
+        li.hidden = !show;
+        if (show) n++;
+      });
+      if (count) count.textContent = `${n} ${n === 1 ? 'note' : 'notes'}`;
+      if (empty) empty.hidden = n !== 0;
+    };
+    input?.addEventListener('input', apply);
+  });
+</script>
+
+<style>
+  .rc-filter { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; border: 1px solid var(--rule-2); background: var(--strip); padding: 0 14px; }
+  .rc-filter .cap { color: var(--ink-3); }
+  .rc-filter input { border: 0; background: transparent; font: inherit; font-size: 1rem; padding: 13px 0; color: var(--ink); min-width: 0; }
+  .rc-filter input:focus { outline: none; }
+  .rc-filter:focus-within { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); }
+  .rc-count { color: var(--ink-3); }
+  .rc-list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 4px; }
+  .rc-list li[hidden] { display: none; }
+  .rc-note { display: grid; grid-template-columns: 64px minmax(0, 0.9fr) minmax(0, 1.3fr) minmax(0, 0.55fr); background: var(--strip); border: 1px solid var(--rule); color: var(--ink); }
+  .rc-note > span { padding: 14px 16px; min-width: 0; }
+  .rc-note > span + span { border-left: 1px solid var(--rule); }
+  .rc-code { background: var(--blue); color: #fff; font-family: var(--mono); font-weight: 600; font-size: 0.8rem; }
+  .rc-title { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; font-size: 1.18rem; line-height: 1.1; }
+  .rc-blurb { color: var(--ink-2); font-size: 0.95rem; line-height: 1.5; }
+  .rc-meta { display: grid; gap: 6px; align-content: start; }
+  .rc-meta .datum { color: var(--ink-3); font-size: 0.7rem; }
+  .rc-tags { color: var(--ink-3); font-size: 0.86rem; line-height: 1.45; }
+  .rc-meta .rc-min { color: var(--ink); }
+  .rc-note:hover .rc-title { color: var(--blue); }
+  .rc-empty { margin-top: 14px; color: var(--ink-3); }
+  @media (max-width: 1080px) {
+    .rc-note { grid-template-columns: 56px minmax(0, 1fr); }
+    .rc-blurb, .rc-meta { grid-column: 2; border-left: 1px solid var(--rule); border-top: 1px solid var(--rule); }
+    .rc-code { grid-row: 1 / 4; }
+  }
+</style>

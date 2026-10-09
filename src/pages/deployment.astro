@@ -1,0 +1,418 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import CodeTabs from '../components/CodeTabs.astro';
+import Timeline from '../components/Timeline.astro';
+import Fleet from '../components/air/Fleet.astro';
+import NoteLinks from '../components/NoteLinks.astro';
+import Close from '../components/air/Close.astro';
+import { TIERS } from '../data/hardware';
+
+const skus = [
+  { code: 'CMP', name: 'Single-host compose', dir: 'compose/', use: 'POCs, small sites, edge, demo appliances', caliban: 'caliban standalone: router + control plane in one process', stores: 'Postgres 17, Qdrant, Valkey containers', models: 'One container per model (vLLM, TEI, llama.cpp or Ollama), one compose profile each', egress: 'None; BYOK through an opt-in override' },
+  { code: 'K8S', name: 'Kubernetes (Helm)', dir: 'helm/caliban', use: 'VPC / dedicated, production', caliban: 'mode: split (stateless router with HPA + control plane), or mode: standalone for small clusters', stores: 'Bring your own (CloudNativePG, Qdrant chart, Valkey chart)', models: 'Chart modelPools (vLLM, SGLang, TEI, llama.cpp), or your own llm-d / Dynamo', egress: 'Default-deny NetworkPolicy; allow-list per provider' },
+  { code: 'GAP', name: 'Air-gapped / sovereign', dir: 'airgap/', use: 'Regulated and classified sites', caliban: 'Either of the above, fed from a signed bundle', stores: 'Same', models: 'Open-weight only, pinned and hashed', egress: 'None, by construction' },
+] as const;
+
+const compose = `# 1. Image: build it (needs ../core and ../web) or load it from a bundle
+images/build.sh --version 0.1.0
+
+# 2. Secrets
+cd compose
+cp .env.example .env && chmod 600 .env
+#    fill in CALIBAN_ADMIN_TOKEN, CALIBAN_KEK, POSTGRES_PASSWORD, VALKEY_PASSWORD
+
+# 3. Weights into ./models (connected machine; licence-gated, pinned revisions)
+../airgap/bundle.sh fetch --profile qwen3-small,embeddings,reranker --models-dir ./models
+
+# 4. Start the pools for your hardware tier
+docker compose --profile qwen3-small --profile embeddings --profile reranker up -d   # 1×24 GB GPU
+docker compose --profile cpu up -d                                                  # CPU only
+
+# 5. Tenant API key, then smoke test
+MINT_KEY=1 ../scripts/smoke.sh`;
+
+const helm = `kubectl create ns caliban && kubectl label ns caliban pod-security.kubernetes.io/enforce=restricted
+kubectl -n caliban create secret generic caliban-auth \\
+  --from-literal=admin-token="$(openssl rand -hex 32)" --from-literal=kek="$(openssl rand -base64 32)"
+kubectl -n caliban create secret generic caliban-database --from-literal=url='postgres://...'
+helm install caliban helm/caliban -n caliban                                      # connected / VPC
+helm install caliban helm/caliban -n caliban -f helm/caliban/values-airgap.yaml   # air-gapped`;
+
+const pools = `# deploy/helm/caliban/values.yaml: 2×80 GB example with SGLang
+modelPools:
+  pools:
+    - name: qwen3-xl
+      enabled: false
+      image: { repository: lmsysorg/sglang, tag: v0.5.21 }
+      command: [python3, -m, sglang.launch_server]
+      gpus: 2
+      args:
+        - --model-path=/models/qwen3.5-122b-a10b-fp8
+        - --served-model-name=Qwen/Qwen3.5-122B-A10B-FP8
+        - --tp-size=2
+        - --context-length=131072
+        - --reasoning-parser=qwen3
+        - --tool-call-parser=qwen3_coder
+
+# values-airgap.yaml enables four pools: qwen3-large, gpt-oss, embed and rerank.
+# They read weights from a PVC named caliban-models and have no egress.`;
+
+const profiles = [
+  ['qwen3-small', 'Qwen3.5-9B on vLLM (1 × 24 GB)'],
+  ['qwen3-large', 'Qwen3.8-27B-FP8 on vLLM (1 × 48 / 80 GB)'],
+  ['qwen3-moe', 'Qwen3.6-35B-A3B on vLLM'],
+  ['gpt-oss', 'gpt-oss-20b on vLLM'],
+  ['embeddings', 'Qwen3-Embedding-0.6B on TEI'],
+  ['reranker', 'Qwen3-Reranker-0.6B on vLLM pooling'],
+  ['cpu', 'llama.cpp chat + TEI cpu embedder and reranker'],
+  ['ollama', 'One Ollama endpoint for several models'],
+];
+
+const airgap = [
+  { n: '1', group: 'Connected side', title: 'Build the Caliban image', body: 'Optionally hermetic: <code>build.sh vendor</code>, then <code>build.sh --offline</code> with the network off.' },
+  { n: '2', title: 'Download and pin the weights', body: '<code>bundle.sh fetch</code> applies the licence gate before any download, uses <code>hf download --revision</code>, and records a tree sha256 per model.' },
+  { n: '3', key: true, title: 'Bundle and sign', body: 'Save the pinned images, copy the weights, write <code>MANIFEST.sha256</code> and sign it with cosign or minisign.' },
+  { n: '4', title: 'Transfer', body: 'Carry <code>caliban-bundle-&lt;v&gt;.tar</code> and its <code>.sha256</code> on approved media. Send the public key through a separate channel.' },
+  { n: '5', group: 'Air-gapped site', title: 'Verify the outer checksum', body: 'The tar is uncompressed on purpose: weights don’t compress, and verification stays streaming.' },
+  { n: '6', key: true, title: 'Verify and load', body: '<code>load.sh</code> checks the signature against the out-of-band key, verifies every file, then <code>docker load</code>s the images or pushes them to the site registry.' },
+  { n: '7', title: 'Deploy', body: 'With compose (append the image refs from <code>load.sh</code> to <code>.env</code>) or Helm with <code>values-airgap.yaml</code>.' },
+  { n: '8', title: 'Smoke test', body: '<code>MINT_KEY=1 deploy/scripts/smoke.sh</code> mints a tenant key through the admin API and runs a chat completion.' },
+];
+
+const bundle = `caliban-bundle-<v>/
+  VERSION
+  images/*.tar             docker save output, one per image
+  images.txt               env-var  ref  tarfile  image-id  repo-digest
+  models/<dir>/...         weights, laid out exactly as compose's $MODELS_DIR
+  models.lock.yaml
+  deploy/                  compose/, helm/, airgap/, scripts/, README.md
+  MANIFEST.sha256          sha256 of every file above
+  MANIFEST.sha256.sig      cosign signature   (or MANIFEST.sha256.minisig)`;
+
+const load = `# Build side (once): pick one signer, keep the private key here
+minisign -G -p caliban-bundle.pub -s caliban-bundle.key
+
+deploy/airgap/bundle.sh --version 0.1.0 --profile qwen3-small,embeddings,reranker,gpt-oss \\
+  --models-dir deploy/compose/models --platform linux/amd64 \\
+  --sign minisign --key caliban-bundle.key --out ./dist
+
+# Site: single docker host (compose)
+deploy/airgap/load.sh caliban-bundle-0.1.0.tar \\
+  --pubkey caliban-bundle.pub \\
+  --models-dest /srv/caliban/models \\
+  --env-out /srv/caliban/images.env
+
+# Site: Kubernetes, push to the site registry instead
+deploy/airgap/load.sh caliban-bundle-0.1.0.tar \\
+  --pubkey caliban-bundle.pub \\
+  --registry registry.internal:5000 \\
+  --env-out images.env`;
+
+const ner = `# Build with the NER feature
+cargo build -p caliban --features ner
+
+# Fetch the pinned model on the connected side (stdlib-only script; refuses any file
+# whose sha256 does not match the value pinned in the script)
+cd ml && python3 scripts/fetch_pii_ner.py
+# → ml/artifacts/pii_ner/nym-pii-multilingual-small-int8/3.0.0/
+
+# Point Caliban at the verified artifact
+export CALIBAN_PII_NER_DIR=/path/to/pii_ner/nym-pii-multilingual-small-int8/3.0.0
+export CALIBAN_PII_NER_SESSIONS=1   # parallel ONNX sessions (default 1)
+# The binary refuses to start if CALIBAN_PII_NER_DIR is set but the artifact fails hash verification.`;
+
+const sizing = [
+  ['router', '0.5 vCPU / 512 MiB per replica, 2+ replicas, scale on CPU. SSE streams are long-lived, so scale down slowly.'],
+  ['control plane', '0.25 vCPU / 256 MiB'],
+  ['Postgres', '2 vCPU / 4 GiB; SSD; nightly pg_dump plus WAL archiving'],
+  ['Qdrant', 'RAM ≈ vectors × dim × 4 B × 1.5 (or on-disk / quantized collections); snapshots enabled'],
+  ['Valkey', '1 GiB, AOF on'],
+];
+
+const hardening = [
+  { k: 'NET', t: 'Network', items: ['Datastores and model servers have no route out: compose internal backend, or the default-deny NetworkPolicy.', 'Published ports bound to 127.0.0.1 or an internal NIC, TLS at your proxy.', 'The control plane (8081) is not exposed to the data-plane audience.', 'No outbound DNS from Caliban hosts; verify it during a smoke test.'] },
+  { k: 'KEY', t: 'Secrets and keys', items: ['CALIBAN_KEK is 32 random bytes in a vault or HSM, backed up offline, never in git or Helm values.', 'CALIBAN_ADMIN_TOKEN is 32+ random bytes, rotated on staff changes.', 'Unique strong passwords for Postgres and Valkey; scram-sha-256 and TLS off-host.'] },
+  { k: 'WRK', t: 'Workloads', items: ['Non-root (65532), read-only root filesystem, cap_drop ALL, no-new-privileges, PSS restricted.', 'Images pinned by digest, from a signed bundle or a private mirror.', 'Weights read-only from pinned, hashed directories; HF_HUB_OFFLINE=1; runtime LoRA loading off on shared pools.', 'Shared vLLM/SGLang pools set cache_salt = true.'] },
+  { k: 'DAT', t: 'Data', items: ['security.egress = "deny_by_default" stays in caliban.toml.', 'PII mode reversible or mask for tenants with personal data.', 'Telemetry endpoint empty, or your own collector only.', 'Backups (Postgres, Qdrant snapshots, KEK) tested by restoring them.'] },
+];
+---
+<Base title="Deployment" description="Run Caliban on-prem with zero egress: single-host compose, Kubernetes with Helm, or air-gapped from a signed offline bundle. Hardware tiers, model pools, the air-gap procedure and the PII NER model.">
+  <PageHero
+    crumbs={[{ label: 'Deployment' }]}
+    title="One image, three shapes, zero egress by default"
+    lead="Every SKU runs the same image and the same binary. The control plane, web console, datastores and models all run locally; nothing calls home, and opening egress to a provider is an explicit, per-provider decision."
+  >
+    <Fragment slot="actions">
+      <a class="btn btn-primary" href="#air-gap">Air-gapped install</a>
+      <a class="btn btn-secondary" href="#hardware">Hardware tiers</a>
+    </Fragment>
+    <div slot="visual" class="rules">
+      <p class="cap rl-cap">Two rules in every deployment</p>
+      <ol class="rl-list">
+        <li class="strip rl"><span class="code-cell">EGR</span><div><h3 class="strip-title">Zero egress by default</h3><p>Datastores and model servers sit on an internal network with no route off the host. Telemetry is off unless you point it at your own collector.</p></div></li>
+        <li class="strip rl"><span class="code-cell">KEY</span><div><h3 class="strip-title">BYOK, never pooled</h3><p>Customers bring their own provider keys, or use local models. Caliban never pools upstream credentials.</p></div></li>
+      </ol>
+      <p class="cap rl-cap ports-cap">Ports</p>
+      <dl class="ports">
+        <div><dt class="datum">:8080</dt><dd>Data plane · OpenAI-compatible <code>/v1/*</code>, <code>/healthz</code>, <code>/metrics</code></dd></div>
+        <div><dt class="datum">:8081</dt><dd>Control plane · <code>/api/v1/*</code> and the web console</dd></div>
+      </dl>
+    </div>
+  </PageHero>
+
+  <section class="section paper" id="skus" aria-labelledby="sku-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="sku-title">Pick the shape that fits the site</h2>
+        <p>From <code>deploy/README.md</code>. The commercial shapes (SaaS, VPC, sovereign) are described in the <a href="/architecture/#skus">reference architecture</a>.</p>
+      </div>
+      <ul class="skus">
+        {skus.map((s) => (
+          <li class="sku">
+            <div class="sku-head"><span class="sku-code">{s.code}</span><code class="sku-dir">deploy/{s.dir}</code></div>
+            <div class="sku-body">
+              <h3 class="strip-title">{s.name}</h3>
+              <p class="sku-use">{s.use}</p>
+              <dl class="ledger sku-dl" style="--dt:96px">
+                <div><dt class="cap">Caliban</dt><dd>{s.caliban}</dd></div>
+                <div><dt class="cap">Datastores</dt><dd>{s.stores}</dd></div>
+                <div><dt class="cap">Models</dt><dd>{s.models}</dd></div>
+                <div><dt class="cap">Egress</dt><dd>{s.egress}</dd></div>
+              </dl>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <Fleet
+    title="Build your deployment"
+    lead="Pick a shape and the hardware you have. The recommended models, engines and compose profiles come straight from the open-models research note and the deploy repo."
+  />
+
+  <section class="section paper" id="hardware" aria-labelledby="hw-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="hw-title">A recommended model set for the hardware you have</h2>
+        <p>From research note 09 §4.3 and the deploy repo. These are <strong>estimates</strong>; benchmark per site. One embedder per deployment: its dimension (1024, 2560 or 4096) is baked into the Qdrant collections.</p>
+      </div>
+      <div class="table-wrap wide hw" tabindex="0" role="region" aria-label="Hardware tiers">
+        <table>
+          <thead><tr><th scope="col">Tier</th><th scope="col">Chat</th><th scope="col">Engine</th><th scope="col">Embeddings</th><th scope="col">Reranker</th><th scope="col">Memory <span class="badge badge-target">Estimate</span></th><th scope="col">Run with</th></tr></thead>
+          <tbody>
+            {TIERS.map((t) => (
+              <tr>
+                <td><strong>{t.label}</strong><span class="hw-sub">{t.hardware}</span></td>
+                <td>{t.chat}{t.chatAlt && <span class="hw-sub">or {t.chatAlt}</span>}</td>
+                <td>{t.engine}</td>
+                <td>{t.embedding}</td>
+                <td>{t.reranker}</td>
+                <td>{t.memory}</td>
+                <td><span class="hw-run cap">{t.via === 'helm' ? 'Helm' : 'Compose'}</span>{t.profiles.map((p) => <code>{p}</code>)}{t.composeEnv && <code class="env">{t.composeEnv}</code>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div class="hw-notes">
+        <p class="callout"><span class="callout-k">Sharing a GPU</span><span>Several pools can share one card as long as the vLLM memory fractions plus about 1.5 GB for TEI fit. The defaults fit <code>qwen3-small + embeddings + reranker</code> on 24 GB and <code>qwen3-large + embeddings + reranker</code> on 48 GB.</span></p>
+        <p class="callout warn"><span class="callout-k">Engines</span><span>vLLM by default, SGLang for prefix-heavy agent and RAG pools, llama.cpp for CPU and edge. <strong>Do not use TGI</strong>: it has been in maintenance mode since December 2025 and was archived in March 2026.</span></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section paper ruled" id="compose" aria-labelledby="run-title">
+    <div class="container split">
+      <div>
+        <h2 id="run-title" class="title-sm">Start a single host in five steps, or install the chart</h2>
+        <p class="lead mt-s">Every model runs in its own engine container (compose) or pool (Helm). Caliban sees each one as a <code>[[providers]]</code> entry; tenant routes decide which intent goes where.</p>
+        <h3 class="sub cap">Compose profiles</h3>
+        <dl class="ledger profiles" style="--dt:130px">{profiles.map(([p, d]) => <div><dt><code>{p}</code></dt><dd>{d}</dd></div>)}</dl>
+        <p class="small muted mt-s">Do not combine <code>embeddings</code> and <code>cpu</code>: both serve the <code>embed</code> name. Ollama has no rerank endpoint and its tags cannot be pinned by revision.</p>
+        <h3 class="sub cap">Network layout</h3>
+        <ul class="checks">
+          <li>Postgres, Qdrant, Valkey and every model server sit only on <code>backend</code>, which is <code>internal: true</code>.</li>
+          <li><code>caliban</code> also joins <code>edge</code>, a bridge with masquerading disabled: enough to publish 8080 and 8081, but no route to the internet.</li>
+          <li>Ports bind to <code>127.0.0.1</code> by default. Put a TLS reverse proxy in front.</li>
+        </ul>
+      </div>
+      <div class="stack-code">
+        <CodeTabs id="run-tabs" maxHeight={520} tabs={[
+          { label: 'Compose quick start', code: compose, lang: 'bash' },
+          { label: 'Helm install', code: helm, lang: 'bash' },
+          { label: 'Helm modelPools', code: pools, lang: 'yaml' },
+        ]} caption="From deploy/README.md and deploy/helm/caliban." />
+      </div>
+    </div>
+  </section>
+
+  <section class="section scope" id="air-gap" aria-labelledby="ag-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="ag-title">No outbound network at install time or at runtime</h2>
+        <p>Signed bundles carry the pinned images and weights across the gap. Never trust a public key that arrives inside the bundle: it travels separately, for example printed in the delivery note or checked by phone.</p>
+      </div>
+      <div class="split ag">
+        <Timeline items={airgap} dark label="Air-gap procedure" />
+        <div class="ag-side">
+          <CodeTabs id="ag-tabs" maxHeight={460} tabs={[
+            { label: 'Bundle and load', code: load, lang: 'bash' },
+            { label: 'Bundle layout', code: bundle, lang: 'plaintext' },
+          ]} caption="From deploy/airgap/README.md." />
+          <ul class="strip-bay ag-strips">
+            <li class="strip ag-strip">
+              <span class="code-cell hold">STOP</span>
+              <div>
+                <h3 class="strip-title"><code>load.sh</code> stops if</h3>
+                <ul class="ag-list">
+                  <li>the outer <code>.tar.sha256</code> doesn’t match;</li>
+                  <li>the signature is missing (unless <code>--allow-unsigned</code>) or invalid;</li>
+                  <li>any file fails <code>MANIFEST.sha256</code>;</li>
+                  <li>the bundle contains a file the manifest doesn’t list;</li>
+                  <li>the archive contains absolute or <code>..</code> paths.</li>
+                </ul>
+              </div>
+            </li>
+            <li class="strip ag-strip">
+              <span class="code-cell">LIC</span>
+              <div>
+                <h3 class="strip-title">Licence policy</h3>
+                <p>The default bundle contains only Apache-2.0 and MIT weights. <code>bundle.sh</code> refuses any other licence unless <code>--allow-licence</code> is passed after a legal review. Llama 4 is excluded.</p>
+              </div>
+            </li>
+            <li class="strip ag-strip">
+              <span class="code-cell">EGR</span>
+              <div>
+                <h3 class="strip-title">Verify zero egress</h3>
+                <p>From a model container, <code>curl -m 5 https://example.com</code> must fail. Watch the site firewall and DNS logs during a full smoke test: there should be no lookups from Caliban hosts.</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section paper" id="pii-ner" aria-labelledby="ner-title">
+    <div class="container split split-wide">
+      <div>
+        <h2 id="ner-title" class="title-sm">Turn on the in-process NER tier</h2>
+        <div class="rich mt-s">
+          <p>The L1 privacy tier is a small multilingual token-classification model in ONNX Runtime, inside the Caliban binary: <code>nym-pii-multilingual-small-int8</code> v3.0.0, MIT-licensed weights, 40 entity types in about 23 languages.</p>
+          <p>It is off by default. Build with <code>--features ner</code>, fetch the artifact on the connected side (it travels in the bundle like any other weights), and set <code>CALIBAN_PII_NER_DIR</code>. <code>CALIBAN_PII_NER_SESSIONS</code> sets the number of parallel ONNX sessions.</p>
+        </div>
+        <p class="callout mt"><span class="callout-k">Fail closed</span><span>If <code>CALIBAN_PII_NER_DIR</code> is set but the artifact fails hash verification, the binary refuses to start. If the detector fails at runtime, the request fails rather than going out half-scrubbed.</span></p>
+        <a class="link-arrow mt-link" href="/platform/privacy/">How the privacy pipeline works</a>
+      </div>
+      <CodeTabs id="ner-tabs" tabs={[{ label: 'Enable the NER tier', code: ner, lang: 'bash' }]} caption="From core/README.md and core/crates/caliban-pii/MODELS.md." />
+    </div>
+  </section>
+
+  <section class="section paper ruled" id="hardening" aria-labelledby="hard-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="hard-title">The checklist, condensed</h2>
+        <p>The full checklist, BYOK egress rules and the upgrade and rollback procedure are in <code>deploy/README.md</code>. Assume migrations are forward-only: back up Postgres, snapshot Qdrant and confirm you have the KEK before any upgrade.</p>
+      </div>
+      <div class="rgrid hard" style="--n:4">
+        {hardening.map((h) => (
+          <div class="hard-col">
+            <p class="hard-k"><span class="hk-code">{h.k}</span><span class="hk-t">{h.t}</span></p>
+            <ul class="checks">{h.items.map((i) => <li>{i}</li>)}</ul>
+          </div>
+        ))}
+      </div>
+      <h3 class="sub cap sizing-h">Sizing starting points for Caliban itself</h3>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Sizing starting points">
+        <table>
+          <thead><tr><th scope="col">Component</th><th scope="col">Starting point <span class="badge badge-target">Estimate</span> <span class="th-note">measure with your own traffic</span></th></tr></thead>
+          <tbody>{sizing.map(([a, b]) => <tr><td>{a}</td><td>{b}</td></tr>)}</tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <NoteLinks slugs={['07-gateway-serving-and-sovereign-deployment', '09-open-models-on-prem']} title="The research behind the deployment design" />
+  <Close />
+</Base>
+
+<style>
+  .ruled { border-top: 1px solid var(--rule); }
+  .mt { margin-top: 24px; }
+  .mt-s { margin-top: 14px; }
+  .mt-link { margin-top: 20px; }
+  .sub { margin: 32px 0 12px; color: var(--ink-3); font-family: var(--display); }
+
+  /* Hero instrument */
+  .rl-cap { color: var(--readout-3); margin-bottom: 10px; }
+  .rl-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .rl { --cols: 60px minmax(0, 1fr); }
+  .rl h3 { color: var(--readout); font-size: 1.15rem; }
+  .rl p { margin-top: 4px; font-size: 0.92rem !important; }
+  .ports-cap { margin-top: 18px; }
+  .ports { margin: 0; border-top: 1px solid var(--scope-line-2); }
+  .ports > div { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--scope-line); align-items: baseline; }
+  .ports dt { color: var(--target); font-weight: 600; font-size: 0.86rem; }
+  .ports dd { margin: 0; color: var(--readout-2); font-size: 0.92rem; }
+
+  /* SKUs: three ruled columns, each headed by its directory */
+  .skus { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+  .sku { background: var(--strip); display: grid; grid-template-rows: auto 1fr; min-width: 0; }
+  .sku-head { display: grid; grid-template-columns: 60px minmax(0, 1fr); background: var(--blue); color: #fff; }
+  .sku-code { font-family: var(--mono); font-weight: 600; font-size: 0.78rem; padding: 12px; border-right: 1px solid rgba(255, 255, 255, 0.3); }
+  .sku-dir { background: none; color: #fff; padding: 12px 14px; font-size: 0.78rem; }
+  .sku-body { padding: 20px 22px 22px; }
+  .sku-use { margin: 6px 0 16px; color: var(--blue); font-weight: 600; font-size: 0.95rem; }
+  .sku-dl dd { font-size: 0.92rem; line-height: 1.5; }
+
+  /* Hardware */
+  .hw table { min-width: 1080px; }
+  .hw td { color: var(--ink-2); }
+  .hw th .badge { margin-left: 6px; vertical-align: 1px; }
+  .hw-sub { display: block; font-size: 0.82rem; color: var(--ink-3); font-weight: 400; margin-top: 2px; }
+  .hw td code { display: inline-block; margin: 2px 4px 2px 0; font-size: 0.76rem; }
+  .hw td code.env { display: block; width: max-content; }
+  .hw-run { display: block; color: var(--blue); margin-bottom: 4px; }
+  .hw-notes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* Compose */
+  .profiles dt code { background: none; padding: 0; color: var(--blue-deep); font-weight: 600; }
+  .profiles dd { font-size: 0.94rem; }
+  .stack-code { position: sticky; top: calc(var(--nav-h) + 24px); }
+
+  /* Air gap */
+  .ag { margin-top: 8px; }
+  .ag-side { display: grid; gap: 14px; align-content: start; min-width: 0; }
+  .ag-strips { list-style: none; margin: 0; padding: 0; }
+  .ag-strip { --cols: 64px minmax(0, 1fr); }
+  .ag-strip h3 { color: var(--readout); font-size: 1.15rem; }
+  .ag-strip h3 code { font-size: 0.72em; text-transform: none; letter-spacing: 0; }
+  .ag-strip p { margin-top: 6px; font-size: 0.93rem !important; }
+  .ag-list { margin: 8px 0 0; padding-left: 1.1em; list-style: square; color: var(--readout-2); font-size: 0.93rem; line-height: 1.6; }
+  .ag-list li::marker { color: var(--target); }
+
+  /* Hardening */
+  .hard-col { padding: 0 !important; }
+  .hard-k { display: grid; grid-template-columns: 56px minmax(0, 1fr); border-bottom: 1px solid var(--rule); margin: 0 !important; }
+  .hk-code { background: var(--blue); color: #fff; font-family: var(--mono); font-weight: 600; font-size: 0.74rem; padding: 12px 10px; }
+  .hk-t { padding: 10px 14px; font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; font-size: 1.15rem; color: var(--ink); line-height: 1.2; }
+  .hard .checks { border-top: 0; padding: 4px 16px 10px; }
+  .hard .checks li { font-size: 0.9rem; }
+  .hard .checks li:last-child { border-bottom: 0; }
+  .sizing-h { margin-top: 48px; }
+  .th-note { font-family: var(--sans); font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-3); margin-left: 4px; }
+
+  @media (max-width: 1080px) {
+    .skus { grid-template-columns: minmax(0, 1fr); }
+    .stack-code { position: static; }
+    .hw-notes { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .sku-body { padding: 16px; }
+    .callout { grid-template-columns: minmax(0, 1fr); }
+    .callout > .callout-k { border-right: 0; border-bottom: 1px solid var(--rule); white-space: normal; }
+    .ports > div { grid-template-columns: 64px minmax(0, 1fr); }
+  }
+</style>

@@ -1,0 +1,301 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import EvidenceGrid from '../../components/EvidenceGrid.astro';
+import Timeline from '../../components/Timeline.astro';
+import CodeTabs from '../../components/CodeTabs.astro';
+import StatusTable from '../../components/StatusTable.astro';
+import NoteLinks from '../../components/NoteLinks.astro';
+import Close from '../../components/air/Close.astro';
+import PiiInspector from '../../components/platform/PiiInspector.astro';
+import { crates } from '../../data/status';
+
+const evidence = [
+  {
+    value: '0.02–0.07 recall', bar: { kind: 'span', values: [2, 7] }, label: 'Recall of a rule-based detector (Presidio) on partial and obfuscated mentions',
+    detail: 'Every detector family degrades out of distribution; hybrid cascades do best.',
+    sources: [{ label: 'REDACT 2026', href: 'https://arxiv.org/pdf/2606.19881' }, { label: 'Mind the Gap 2026', href: 'https://arxiv.org/abs/2609.03464' }],
+  },
+  {
+    value: '+13 pp', label: 'BERTScore from type-consistent surrogates over placeholders',
+    detail: '+13.26 pp, and no originals were recovered by an LLM adversary.',
+    sources: [{ label: 'SurrogateShield 2026', href: 'https://arxiv.org/abs/2606.29567' }],
+  },
+  {
+    value: '85%', bar: { kind: 'fill', values: [85] }, label: 'Top-1 accuracy of LLMs inferring personal attributes from “anonymized” text',
+    detail: 'Age, location and income. Removing direct identifiers is not anonymization.',
+    sources: [{ label: 'Beyond Memorization', href: 'https://arxiv.org/abs/2310.07298' }],
+  },
+  {
+    value: '92%', bar: { kind: 'fill', values: [92] }, label: 'Exact recovery of 32-token inputs from their embeddings',
+    detail: 'Inversion also works zero-shot and across models; adding noise does not save them.',
+    sources: [{ label: 'vec2text', href: 'https://arxiv.org/abs/2310.06816' }, { label: 'ZSinvert', href: 'https://arxiv.org/abs/2504.00147' }],
+  },
+  {
+    value: '5 of 5', bar: { kind: 'fill', values: [100] }, label: 'Open-source gateways tested that leaked prompt-cache reads across customers',
+    detail: 'Pooling upstream credentials collapses the provider’s per-organisation cache isolation.',
+    sources: [{ label: 'KeyPooling 2026', href: 'https://arxiv.org/abs/2608.17485' }],
+  },
+  {
+    label: 'Pseudonymized data is still personal data under GDPR',
+    detail: 'The surrogate map is the “additional information” of Art. 4(5). Caliban says pseudonymization, never anonymization.',
+    sources: [{ label: 'EDPB Guidelines 01/2025', href: 'https://www.edpb.europa.eu/system/files/2025-01/edpb_guidelines_202501_pseudonymisation_en.pdf' }],
+  },
+];
+
+const steps = [
+  { n: 'L0', title: 'Deterministic patterns', target: '< 1 ms', status: 'built' as const, body: 'Regex plus validators (Luhn, IBAN mod-97, SSN rules), emails, phones, IPs and API-key formats, and tenant dictionaries compiled from the ontology: customer names, account ids, internal codes.' },
+  { n: 'L1', key: true, title: 'In-process NER model', target: '5–30 ms / 1k tokens', status: 'built' as const, statusLabel: 'Built (ner feature)', body: 'A small multilingual token-classification model in ONNX Runtime, inside the binary. No external call is made to detect PII.' },
+  { n: 'L2', title: 'Local LLM verifier', target: '100–500 ms', status: 'wip' as const, body: 'Strict mode only: a local model, never an external one, catches context-dependent PII and scores quasi-identifier risk.' },
+  { n: 'MRG', title: 'Merge and fail closed', status: 'built' as const, body: 'Spans from every tier are unioned; the longest span wins, then the higher-risk type. If a detector fails, the request fails rather than going out half-scrubbed. Secrets are blocked, never pseudonymized.' },
+  { n: 'SUR', key: true, title: 'Surrogates and the vault', status: 'built' as const, body: 'Each value is replaced by a realistic surrogate of the same type (valid Luhn and IBAN check digits), derived from an HMAC so the same person maps to the same surrogate within a scope. The reverse map stays in the vault.' },
+  { n: 'RHY', key: true, title: 'Streaming rehydration', status: 'built' as const, body: 'An Aho-Corasick matcher restores originals in the answer. In a stream, only text that could still start a surrogate is held back, so the delay is a few tokens, not a buffer.' },
+];
+
+const tiers = [
+  { t: 'T0', d: 'Sovereign or local model', x: 'No redaction needed. Data does not leave the boundary; logs are still scrubbed.' },
+  { t: 'T1', d: 'Attested TEE', x: 'Same as T0 if attestation verifies against a pinned measurement; otherwise demoted to T3.' },
+  { t: 'T2', d: 'Contracted provider, zero data retention', x: 'Pseudonymize direct identifiers and drop secrets.' },
+  { t: 'T3', d: 'Public or unknown', x: 'Strict: also generalize quasi-identifiers and run the verifier; fail closed.' },
+];
+
+const ner = [
+  ['Artifact', '<code>nym-pii-multilingual-small-int8</code> v3.0.0'],
+  ['Architecture', 'mmBERT-small (ModernBERT), 16 layers, int8 embeddings · ONNX, 138.7 MB'],
+  ['Labels', '40 entity types (81 IOB2 labels): names, companies, cities, addresses, emails, phones, IBANs, passports, API keys…'],
+  ['Languages', '~23: en de fr es it pt nl pl sv cs ro tr fi da el ru uk ja zh ko ar hi'],
+  ['Licence', 'MIT weights at a pinned revision; training data synthetic plus auto-labelled text that is not redistributed'],
+  ['Safety', 'Downloads are refused unless every file matches its pinned sha256'],
+];
+
+const safeguards = [
+  { k: 'KEY', title: 'Per-tenant keys, crypto-shredding', body: 'The vault is an encrypted reverse map under a per-tenant key (customer-held in the sovereign tier). Deleting the key crypto-shreds the data, which serves GDPR erasure.' },
+  { k: 'EMB', title: 'Caches and embeddings are personal data', body: 'Only pseudonymized text is embedded or cached, in per-tenant collections, and a hit is rehydrated with the current request’s own vault.' },
+  { k: 'LOG', title: 'Logs without values', body: 'Traces never record prompt or response content. Audit records are designed to hold entity-type counts, keyed span hashes, the policy version and the decision, never raw values.' },
+];
+
+const regNote = '/research/05-anonymization-and-privacy/#8-regulatory-positioning-be-precise-in-marketing';
+const compliance = [
+  { code: 'GDPR', title: 'Pseudonymization, not anonymization', body: 'Pseudonymization is a recognised safeguard, and the output is still personal data. Per-tenant keys and crypto-shredding support erasure.', evidence: [{ label: 'EDPB Guidelines 01/2025', href: 'https://www.edpb.europa.eu/system/files/2025-01/edpb_guidelines_202501_pseudonymisation_en.pdf' }, { label: 'Note 05 §8', href: regNote }] },
+  { code: 'HIPAA', title: 'Safe Harbor coverage, no “de-identified” claim', body: 'The standard tier targets all 18 Safe Harbor identifiers. Caliban does not claim “de-identified” output without an Expert Determination for your workload.', evidence: [{ label: 'HHS de-identification guidance', href: 'https://www.hhs.gov/hipaa/for-professionals/special-topics/de-identification/index.html' }, { label: 'Note 05 §8', href: regNote }] },
+  { code: 'EU AI ACT', title: 'Art. 10(5): bias work on special-category data', body: 'Art. 10(5) asks for pseudonymization and strict access control when special-category data is used for bias work; the audit log and vault support that.', evidence: [{ label: 'EU AI Act, Article 10', href: 'https://artificialintelligenceact.eu/article/10/' }, { label: 'Note 05 §8', href: regNote }] },
+];
+
+const rehydrateRs = `// core/crates/caliban-pii/src/rehydrate.rs
+impl StreamingRehydrator {
+    /// Feed a decoded text delta; returns the text that is safe to emit now.
+    pub fn push(&mut self, delta: &str) -> String {
+        let Some(ac) = &self.inner.ac else {
+            return delta.to_owned();
+        };
+        self.buf.push_str(delta);
+        let mut emit_end = self.inner.hold_from(&self.buf);
+        // A complete match that straddles the hold point is emitted whole.
+        for m in ac.find_iter(&self.buf) {
+            if m.start() < emit_end && m.end() > emit_end {
+                emit_end = m.end();
+            }
+        }
+        let out = self.inner.rehydrate(&self.buf[..emit_end]);
+        self.buf.drain(..emit_end);
+        out
+    }
+
+    /// Flush whatever is held back at end of stream.
+    pub fn finish(&mut self) -> String {
+        let rest = std::mem::take(&mut self.buf);
+        self.inner.rehydrate(&rest)
+    }
+}`;
+
+const configToml = `# core/config/caliban.example.toml
+[pii]
+# Default for tenants that don't override it: off | mask | reversible
+default_mode = "reversible"
+
+[[tenants]]
+id = "acme"
+pii_mode = "reversible"
+
+# Per request, from any OpenAI-compatible client:
+#   "caliban": { "pii": "reversible" }     # off | mask | reversible`;
+
+const nerEnv = `# Build with the NER feature and fetch the pinned, hash-checked model
+cargo build -p caliban --features ner
+cd ml && python3 scripts/fetch_pii_ner.py
+# → ml/artifacts/pii_ner/nym-pii-multilingual-small-int8/3.0.0/{manifest.json,model.onnx,tokenizer.json,config.json}
+
+# Point Caliban at the verified artifact directory
+export CALIBAN_PII_NER_DIR=$PWD/artifacts/pii_ner/nym-pii-multilingual-small-int8/3.0.0
+export CALIBAN_PII_NER_SESSIONS=2   # parallel ONNX sessions, default 1
+caliban standalone
+# The binary refuses to start if the variable is set but the artifact fails hash verification.`;
+---
+<Base title="Privacy" description="Caliban pseudonymizes personal data with realistic surrogates before a prompt leaves your trust boundary, and restores the originals in the answer, including streamed answers.">
+  <PageHero
+    crumbs={[{ label: 'Platform' }, { label: 'Privacy' }]}
+    title="Personal data is swapped before it leaves, and restored mid-stream"
+    lead="Patterns, validators and an in-process NER model find personal data. Realistic, type-consistent surrogates replace it before an external model sees the prompt, and a streaming rehydrator restores the originals in the answer with only a few tokens of hold-back."
+  >
+    <Fragment slot="actions">
+      <a class="btn btn-primary" href="#how">How it works</a>
+      <a class="btn btn-secondary" href="/research/05-anonymization-and-privacy/">Read research note 05</a>
+    </Fragment>
+    <PiiInspector slot="visual" />
+  </PageHero>
+
+  <EvidenceGrid
+    id="evidence"
+    title="No single detector is enough, and placeholders cost answer quality"
+    lead="The literature agrees on four points: use a cascade of detectors, use surrogates rather than placeholders, treat caches and embeddings as leakage channels, and be precise about what pseudonymization is."
+    items={evidence}
+    notes={[{ label: 'note 05', href: '/research/05-anonymization-and-privacy/' }]}
+  />
+
+  <section class="section paper" id="how" aria-labelledby="how-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="how-title">A recall-biased cascade, then reversible surrogates</h2>
+        <p>A missed entity costs more than an extra one, so detection takes the union of every tier. Surrogates keep the shape the model needs to reason (a name stays a name, a card number keeps a valid check digit) without carrying the original.</p>
+      </div>
+      <div class="split how">
+        <div class="sticky-col">
+          <p class="cap side-cap">Modes, per tenant or per request</p>
+          <div class="keybank modes"><span>off</span><span>mask</span><span class="on">reversible</span></div>
+          <div class="rich mt">
+            <p>Modes per tenant or per request: <code>off</code>, <code>mask</code> or <code>reversible</code>. Surrogates are consistent within a scope: the <strong>request</strong> (the default in core today), a <strong>session</strong> for multi-turn and agent memory, or the <strong>tenant</strong>, which lets identical requests hit the exact cache at the cost of linking sessions.</p>
+          </div>
+          <p class="callout warn mt"><span class="callout-k">Targets</span><span>Latencies are <strong>targets</strong>, not measurements. Status badges come from <code>core/README.md</code>.</span></p>
+        </div>
+        <Timeline items={steps} label="Privacy pipeline" />
+      </div>
+    </div>
+  </section>
+
+  <section class="section scope" aria-labelledby="ner-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="ner-title">A small, MIT-licensed NER model, verified by hash</h2>
+        <p>Chosen because it is permissive, multilingual, PII-specific and ships a ready ONNX export. Details and rejected candidates: <code>core/crates/caliban-pii/MODELS.md</code>.</p>
+      </div>
+      <div class="split split-wide">
+        <div>
+          <dl class="ledger" style="--dt:120px">
+            {ner.map(([k, v]) => <div><dt class="cap">{k}</dt><dd set:html={v} /></div>)}
+          </dl>
+          <p class="fine">Deployment: <a href="/deployment/#pii-ner">PII NER on the deployment page</a>.</p>
+        </div>
+        <CodeTabs id="pii-tabs" maxHeight={600} tabs={[
+          { label: 'Streaming rehydrator (Rust)', code: rehydrateRs, lang: 'rust' },
+          { label: 'PII mode (TOML)', code: configToml, lang: 'toml' },
+          { label: 'Enable the NER model', code: nerEnv, lang: 'bash' },
+        ]} caption="Excerpts from core/crates/caliban-pii, core/config/caliban.example.toml and core/README.md." />
+      </div>
+    </div>
+  </section>
+
+  <section class="section paper" aria-labelledby="tiers-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="tiers-title">The destination decides the treatment</h2>
+        <p>Every provider and model has a trust tier. When a request is sensitive and a capable local model exists, the router prefers it; otherwise the request is pseudonymized for the best external model.</p>
+      </div>
+      <ol class="strip-bay tiers" aria-label="Trust tiers">
+        {tiers.map((t) => (
+          <li class="strip">
+            <span class="code-cell"><span class="tier-k">{t.t}</span></span>
+            <h3 class="strip-title">{t.d}</h3>
+            <p>{t.x}</p>
+          </li>
+        ))}
+      </ol>
+      <ul class="strip-bay safeguards">
+        {safeguards.map((g) => (
+          <li class="strip"><span class="code-cell">{g.k}</span><div><h3 class="strip-title">{g.title}</h3><p>{g.body}</p></div></li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section scope" aria-labelledby="comp-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="comp-title">Designed to support your obligations</h2>
+        <p>Caliban is <strong>not certified</strong> under any of these frameworks. The design gives you safeguards and evidence; the legal determination stays with you.</p>
+      </div>
+      <ul class="strip-bay comp" aria-label="Obligations and the evidence for each">
+        {compliance.map((c) => (
+          <li class="strip comp-strip">
+            <span class="code-cell"><span>{c.code}</span></span>
+            <div class="comp-ob">
+              <h3 class="strip-title">{c.title}</h3>
+              <p>{c.body}</p>
+            </div>
+            <div class="comp-ev">
+              <span class="cap">Evidence</span>
+              <ul>{c.evidence.map((e) => <li>{e.href.startsWith('/') ? <a href={e.href}>{e.label}</a> : <a href={e.href} target="_blank" rel="noopener noreferrer">{e.label}</a>}</li>)}</ul>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section section-tight paper" aria-labelledby="status-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="status-title" class="head-sm">What is built in core today</h2>
+        <p>Still in progress: tenant-scoped surrogates wired to the cache, format-preserving encryption for structured ids, the encrypted persistent vault, the L2 verifier, and tool-call argument rehydration in streams.</p>
+      </div>
+      <StatusTable rows={crates('caliban-pii')} />
+    </div>
+  </section>
+
+  <NoteLinks slugs={['05-anonymization-and-privacy']} platform="/platform/privacy/" />
+  <Close />
+</Base>
+
+<style>
+  .mt { margin-top: 24px; }
+  .sticky-col { position: sticky; top: calc(var(--nav-h) + 32px); }
+  .how { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); }
+  .side-cap { color: var(--ink-3); margin-bottom: 10px; }
+  .modes > span { cursor: default; font-family: var(--mono); text-transform: none; letter-spacing: 0; font-size: 0.8rem; }
+  .modes > span:hover { background: var(--strip); color: var(--ink-2); }
+  .modes > span.on:hover { background: var(--blue); color: #fff; }
+  .ledger dd :global(code) { font-size: 0.86em; }
+  .fine { margin-top: 16px; color: var(--readout-3); font-size: 0.9rem; }
+
+  ol.strip-bay, ul.strip-bay { list-style: none; margin: 0; padding: 0; }
+  .tiers .strip { --cols: 80px minmax(0, 0.9fr) minmax(0, 1.4fr); }
+  .tiers .strip-title { align-self: center; font-size: 1.15rem; }
+  .tiers .strip > p { align-self: center; }
+  .tier-k { font-family: var(--mono); font-weight: 600; font-size: 1.35rem; line-height: 1; font-variant-numeric: slashed-zero; }
+  .strip-bay.safeguards { margin-top: 28px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .safeguards .strip { --cols: 64px minmax(0, 1fr); }
+  .safeguards .strip p { margin-top: 6px; }
+
+  .comp-strip { --cols: 108px minmax(0, 1fr) minmax(200px, 0.32fr); }
+  .comp-strip .code-cell { font-size: 0.8rem; }
+  .comp-ob h3 { color: var(--readout); font-size: 1.15rem; }
+  .comp-ob p { margin-top: 6px; }
+  .comp-ev { display: grid; gap: 6px; align-content: start; }
+  .comp-ev .cap { color: var(--readout-3); font-size: 0.72rem; }
+  .comp-ev ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 0.9rem; line-height: 1.35; }
+
+  @media (max-width: 1080px) {
+    .sticky-col { position: static; }
+    .how { grid-template-columns: minmax(0, 1fr); }
+    .strip-bay.safeguards { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 860px) {
+    .comp-strip { --cols: 88px minmax(0, 1fr); }
+    .comp-strip .code-cell { grid-row: 1 / 3; }
+    .comp-ev { grid-column: 2; border-top: 1px solid var(--scope-line); }
+  }
+  @media (max-width: 760px) {
+    .tiers .strip { --cols: 64px minmax(0, 1fr); }
+    .tiers .strip > p { grid-column: 2; border-top: 1px solid var(--rule); }
+    .tiers .code-cell { grid-row: 1 / 3; }
+  }
+</style>

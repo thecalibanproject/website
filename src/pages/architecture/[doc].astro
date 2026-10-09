@@ -1,0 +1,53 @@
+---
+// Full renderings of the architecture documents in ../docs/architecture.
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import DocPage from '../../components/DocPage.astro';
+import { docDateline, docTitle, processDocHtml, readingMinutes } from '../../lib/docs';
+
+export async function getStaticPaths() {
+  const ROUTES: Record<string, { slug: string; code: string; crumb: string; description: string }> = {
+    'caliban-reference-architecture': {
+      slug: 'reference',
+      code: 'REF',
+      crumb: 'Reference architecture',
+      description: 'The full Caliban reference architecture (v0.1): capabilities, evidence, system overview, request lifecycle, subsystem designs, deployment SKUs, roadmap and decisions.',
+    },
+    'repos-and-conventions': {
+      slug: 'repos-and-conventions',
+      code: 'REP',
+      crumb: 'Repos & conventions',
+      description: 'Caliban repositories, product decisions, licensing and runtime conventions: ports, environment variables, the request extension, the Anthropic Messages API and rate limits.',
+    },
+  };
+  const docs = await getCollection('architecture');
+  return docs
+    .filter((d) => ROUTES[d.id])
+    .map((entry) => ({ params: { doc: ROUTES[entry.id].slug }, props: { entry, route: ROUTES[entry.id] } }));
+}
+
+const { entry, route } = Astro.props;
+const title = docTitle(entry.body, entry.id);
+const html = processDocHtml(entry.rendered?.html ?? '', 'architecture');
+const headings = (entry.rendered?.metadata?.headings ?? []) as { depth: number; slug: string; text: string }[];
+const dateline = docDateline(entry.body);
+const other = entry.id === 'repos-and-conventions'
+  ? { label: 'Reference architecture', href: '/architecture/reference/' }
+  : { label: 'Repos & conventions', href: '/architecture/repos-and-conventions/' };
+---
+<Base title={title} description={route.description}>
+  <DocPage
+    title={title}
+    code={route.code}
+    kind="DOC"
+    html={html}
+    headings={headings}
+    meta={[
+      ...(dateline ? [{ k: 'Status', v: dateline.split('.')[0] }] : []),
+      { k: 'Reading', v: `${readingMinutes(entry.body)} min` },
+    ]}
+    source={`docs/architecture/${entry.id}.md`}
+    crumbs={[{ label: 'Architecture', href: '/architecture/' }, { label: route.crumb }]}
+    related={[{ label: 'Architecture overview', href: '/architecture/' }, other, { label: 'Deployment', href: '/deployment/' }, { label: 'All research notes', href: '/research/' }]}
+  />
+</Base>

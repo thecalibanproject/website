@@ -1,0 +1,33 @@
+---
+import { Code } from 'astro:components';
+import { calibanScope } from '../../lib/shiki-theme';
+
+interface Props {
+  code: string;
+  lang?: string;
+  title?: string;
+  meta?: string;
+  class?: string;
+  maxHeight?: number;
+}
+const { code, lang = 'plaintext', title, meta, class: className, maxHeight } = Astro.props;
+---
+<figure class:list={['code', 'codeblock', className]}>
+  {title && (
+    <figcaption class="code-head">
+      <span class="code-title">{title}</span>
+      {meta ? <span class="code-meta">{meta}</span> : <span></span>}
+    </figcaption>
+  )}
+  <div class="code-scroll" style={maxHeight ? `max-height:${maxHeight}px` : undefined} tabindex="0" role="region" aria-label={title ? `${title} code` : 'Code sample'}>
+    <Code code={code} lang={lang as any} theme={calibanScope as any} />
+  </div>
+</figure>
+<style>
+  .codeblock { margin: 0; overflow: hidden; }
+  .code-title { flex: 1; color: var(--readout-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .code-meta { color: var(--target); white-space: nowrap; }
+  .code-scroll { overflow: auto; }
+  .code-scroll :global(pre) { padding: 16px 18px; background: transparent !important; font-size: inherit; line-height: inherit; }
+  .code-scroll:focus-visible { outline: 2px solid var(--target); outline-offset: -2px; }
+</style>

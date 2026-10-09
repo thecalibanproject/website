@@ -1,0 +1,42 @@
+---
+// Inner-page hero on the scope surface: mono crumbs (they are paths), display title, lede, actions
+// and an optional instrument on the right. No chip or spec row under the actions.
+interface Crumb { label: string; href?: string }
+interface Props {
+  title: string;
+  lead?: string;
+  crumbs?: Crumb[];
+  /** Wrap the visual slot in the scope panel (default true). */
+  panel?: boolean;
+}
+const { title, lead, crumbs = [], panel = true } = Astro.props;
+const hasVisual = Astro.slots.has('visual');
+---
+<header class="page-hero scope">
+  <div class="container">
+    <div class:list={['ph-grid', { solo: !hasVisual }]}>
+      <div class="ph-text">
+        {crumbs.length > 0 && (
+          <nav aria-label="Breadcrumb">
+            <ol class="crumbs">
+              <li><a href="/">Home</a></li>
+              {crumbs.map((c) => <li>{c.href ? <a href={c.href}>{c.label}</a> : <span aria-current="page">{c.label}</span>}</li>)}
+            </ol>
+          </nav>
+        )}
+        <h1 class="ph-title">{title}</h1>
+        {lead && <p class="ph-lead">{lead}</p>}
+        {Astro.slots.has('actions') && <div class="ph-actions"><slot name="actions" /></div>}
+        <slot />
+      </div>
+      {hasVisual && (
+        <div class:list={['ph-visual', { 'visual-panel': panel }]}>
+          <slot name="visual" />
+        </div>
+      )}
+    </div>
+  </div>
+</header>
+<style>
+  .ph-visual { min-width: 0; }
+</style>

@@ -1,0 +1,68 @@
+---
+// The research notes behind a page, as strips (note id in the code cell), plus sibling navigation
+// across the platform pages, each strip carrying that page's code.
+import { RESEARCH } from '../data/research';
+import { PLATFORM_LINKS } from '../config';
+
+interface Props { slugs: string[]; title?: string; lead?: string; platform?: string }
+const { slugs, title = 'Read the full research', lead, platform } = Astro.props;
+const notes = slugs.map((s) => RESEARCH.find((r) => r.slug === s)).filter((r): r is (typeof RESEARCH)[number] => Boolean(r));
+const idx = platform ? PLATFORM_LINKS.findIndex((p) => p.href === platform) : -1;
+const prev = idx > 0 ? PLATFORM_LINKS[idx - 1] : undefined;
+const next = idx >= 0 && idx < PLATFORM_LINKS.length - 1 ? PLATFORM_LINKS[idx + 1] : undefined;
+---
+<section class="section section-tight paper nl" aria-labelledby="nl-title">
+  <div class="container">
+    <div class:list={['head', { solo: !lead }]}>
+      <h2 id="nl-title" class="head-sm">{title}</h2>
+      {lead && <p>{lead}</p>}
+    </div>
+    <ol class="nl-list">
+      {notes.map((n) => (
+        <li>
+          <a class="nl-note strip-link" href={`/research/${n.slug}/`}>
+            <span class="nl-code"><span class="sr-only">Research note </span>{n.num}</span>
+            <span class="nl-title">{n.short}</span>
+            <span class="nl-blurb">{n.blurb}</span>
+            <span class="nl-go link-arrow">Read the note</span>
+          </a>
+        </li>
+      ))}
+    </ol>
+    {(prev || next) && (
+      <nav class="pnav" aria-label="Platform pages">
+        {prev ? <a href={prev.href} class="pnav-link strip-link"><span class="pnav-code">{prev.code}</span><span class="pnav-text"><span class="cap">Previous</span>{prev.label}</span></a> : <span></span>}
+        {next ? <a href={next.href} class="pnav-link strip-link next"><span class="pnav-text"><span class="cap">Next</span>{next.label}</span><span class="pnav-code">{next.code}</span></a> : <span></span>}
+      </nav>
+    )}
+  </div>
+</section>
+
+<style>
+  .nl { border-top: 1px solid var(--rule); }
+  .nl-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .nl-note { display: grid; grid-template-columns: 64px minmax(0, 0.9fr) minmax(0, 1.3fr) auto; background: var(--strip); border: 1px solid var(--rule); color: var(--ink); }
+  .nl-note > span { padding: 14px 16px; min-width: 0; }
+  .nl-note > span + span { border-left: 1px solid var(--rule); }
+  .nl-code { background: var(--blue); color: #fff; font-family: var(--mono); font-weight: 600; font-size: 0.8rem; }
+  .nl-title { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; font-size: 1.18rem; line-height: 1.1; }
+  .nl-blurb { color: var(--ink-2); font-size: 0.95rem; line-height: 1.5; }
+  .nl-go { color: var(--blue); align-self: stretch; white-space: nowrap; font-size: 0.92rem; }
+  .nl-note:hover .nl-title { color: var(--blue); }
+  .pnav { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 28px; }
+  .pnav-link { display: grid; grid-template-columns: 64px minmax(0, 1fr); background: var(--strip); border: 1px solid var(--rule); color: var(--ink); }
+  .pnav-link.next { grid-template-columns: minmax(0, 1fr) 64px; text-align: right; }
+  .pnav-code { background: var(--blue); color: #fff; font-family: var(--mono); font-weight: 600; font-size: 0.78rem; display: grid; place-items: center; }
+  .pnav-text { display: grid; gap: 2px; padding: 12px 16px; font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; font-size: 1.2rem; line-height: 1.1; }
+  .pnav-text .cap { color: var(--ink-3); font-size: 0.74rem; }
+  .pnav-link:hover .pnav-text { color: var(--blue); }
+  @media (max-width: 1080px) {
+    .nl-note { grid-template-columns: 56px minmax(0, 1fr); }
+    .nl-blurb, .nl-go { grid-column: 2; border-left: 1px solid var(--rule); border-top: 1px solid var(--rule); }
+    .nl-code { grid-row: 1 / 4; }
+  }
+  @media (max-width: 640px) {
+    .pnav { grid-template-columns: minmax(0, 1fr); }
+    .pnav > span:empty { display: none; }
+  }
+</style>

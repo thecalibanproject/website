@@ -1,0 +1,49 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import DocPage from '../../components/DocPage.astro';
+import { docDateline, docTitle, processDocHtml, readingMinutes } from '../../lib/docs';
+import { RESEARCH, researchBySlug } from '../../data/research';
+import { PLATFORM_LINKS } from '../../config';
+
+export async function getStaticPaths() {
+  const notes = (await getCollection('research')).sort((a, b) => a.id.localeCompare(b.id));
+  return notes.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const meta = researchBySlug(entry.id);
+const title = docTitle(entry.body, entry.id);
+const html = processDocHtml(entry.rendered?.html ?? '', 'research');
+const headings = (entry.rendered?.metadata?.headings ?? []) as { depth: number; slug: string; text: string }[];
+const idx = RESEARCH.findIndex((r) => r.slug === entry.id);
+const prev = idx > 0 ? RESEARCH[idx - 1] : undefined;
+const next = idx >= 0 && idx < RESEARCH.length - 1 ? RESEARCH[idx + 1] : undefined;
+const dateline = docDateline(entry.body);
+const researched = dateline?.match(/20\d\d-\d\d-\d\d/)?.[0];
+const platform = PLATFORM_LINKS.find((p) => p.href === meta?.platform);
+const related = [
+  ...(meta?.platform ? [{ label: platform ? `Platform: ${platform.label}` : 'Deployment', href: meta.platform }] : []),
+  { label: 'Reference architecture', href: '/architecture/reference/' },
+  { label: 'All research notes', href: '/research/' },
+];
+---
+<Base title={`${meta?.num ?? ''} ${title}`.trim()} description={meta?.blurb}>
+  <DocPage
+    title={title}
+    code={meta?.num ?? '00'}
+    kind="NOTE"
+    html={html}
+    headings={headings}
+    meta={[
+      ...(researched ? [{ k: 'Researched', v: researched, mono: true }] : []),
+      { k: 'Reading', v: `${readingMinutes(entry.body)} min` },
+      ...(meta?.tags?.length ? [{ k: 'Topics', v: meta.tags.join(' · ') }] : []),
+    ]}
+    source={`docs/research/${entry.id}.md`}
+    crumbs={[{ label: 'Research', href: '/research/' }, { label: `Note ${meta?.num ?? ''}`.trim() }]}
+    related={related}
+    prev={prev && { label: prev.short, code: prev.num, href: `/research/${prev.slug}/` }}
+    next={next && { label: next.short, code: next.num, href: `/research/${next.slug}/` }}
+  />
+</Base>

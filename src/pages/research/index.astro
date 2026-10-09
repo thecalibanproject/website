@@ -1,0 +1,107 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import ResearchCards from '../../components/ResearchCards.astro';
+import Close from '../../components/air/Close.astro';
+import { readingMinutes } from '../../lib/docs';
+
+const notes = await getCollection('research');
+const minutes: Record<string, number> = Object.fromEntries(notes.map((n) => [n.id, readingMinutes(n.body)]));
+
+const anatomy = [
+  { title: 'Summary', body: 'What the literature agrees on, in a paragraph, and what it means for Caliban.' },
+  { title: 'Key papers', body: 'One line per paper or benchmark, why it matters, and a verdict: Adopt, Prototype, Watch or Skip.' },
+  { title: 'Implementations', body: 'Open-source projects and Rust crates, with licences checked for on-prem redistribution.' },
+  { title: 'Risks', body: 'Failure modes with the evidence behind them and the mitigation Caliban adopts.' },
+  { title: 'Recommended design', body: 'What to build, in what order, and which parts stay in Python.' },
+  { title: 'Open questions', body: 'What the research does not settle yet, stated plainly.' },
+];
+
+const shaped = [
+  { finding: 'Text-to-SQL on raw enterprise schemas scores about 10–16%; over an ontology, 54–72%.', decision: 'The ontology is the core asset. Never run free-form SQL over raw schemas.', href: '/research/03-ontology-and-datasource-layer/', n: '03' },
+  { finding: 'Gateways that pool provider keys break per-organisation prompt-cache isolation.', decision: 'BYOK only: each tenant gets its own upstream identity.', href: '/research/01-semantic-caching-and-rust-vector-stack/', n: '01' },
+  { finding: 'Simple routers match complex ones; most of the gain comes from the task type.', decision: 'Start with intent → model tables plus embedding kNN.', href: '/research/02-intent-classification-and-routing/', n: '02' },
+  { finding: 'Placeholders hurt answer quality; type-consistent surrogates recover it.', decision: 'Tiered detection, realistic surrogates, streaming rehydration.', href: '/research/05-anonymization-and-privacy/', n: '05' },
+  { finding: 'Free-form multi-agent systems fail 41–87% of the time.', decision: 'Nodes are typed, budgeted graphs, secured in the Rust core.', href: '/research/04-agent-orchestration/', n: '04' },
+  { finding: 'More retrieved context makes quality rise and then fall.', decision: 'A token budget with a rerank cutoff; compression off by default.', href: '/research/06-rag-and-token-efficiency/', n: '06' },
+];
+---
+<Base title="Research" description="Nine cited literature reviews behind Caliban's design: caching, routing, ontology, agents, privacy, RAG, sovereign deployment, MongoDB and open-weight models.">
+  <PageHero
+    crumbs={[{ label: 'Research' }]}
+    title="Nine cited literature reviews behind every design decision"
+    lead="Each note surveys the 2023–2026 papers, benchmarks and open-source projects on one part of the platform, checks the numbers against the sources, and ends with a recommended design and its open questions."
+  />
+
+  <section class="section paper" aria-label="All research notes">
+    <div class="container"><ResearchCards minutes={minutes} /></div>
+  </section>
+
+  <section class="section scope" aria-labelledby="shape-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="shape-title">How the research shapes what gets built</h2>
+        <p>A few of the findings the reference architecture treats as binding, and the decision each one forced.</p>
+      </div>
+      <div class="shape-head cap" aria-hidden="true"><span>Note</span><span>Finding</span><span>Decision</span></div>
+      <ol class="shape">
+        {shaped.map((s) => (
+          <li>
+            <a href={s.href} class="shape-row">
+              <span class="shape-n"><span class="sr-only">Research note </span>{s.n}</span>
+              <span class="shape-f"><span class="sr-only">Finding: </span>{s.finding}</span>
+              <span class="shape-d"><span class="sr-only">Decision: </span>{s.decision}</span>
+            </a>
+          </li>
+        ))}
+      </ol>
+      <p class="shape-more"><a href="/architecture/" class="btn btn-secondary">Reference architecture</a></p>
+    </div>
+  </section>
+
+  <section class="section paper" aria-labelledby="anatomy-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="anatomy-title">Every note follows the same structure</h2>
+        <p>Figures are published third-party results, linked to their sources. Latency figures marked “target” are engineering estimates, not measurements, and some 2026 regulatory facts come from law-firm summaries that counsel should verify.</p>
+      </div>
+      <ul class="rgrid" style="--n:3">
+        {anatomy.map((a) => (
+          <li>
+            <h3>{a.title}</h3>
+            <p>{a.body}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <Close />
+</Base>
+
+<style>
+
+  .shape-head, .shape-row { display: grid; grid-template-columns: 72px minmax(0, 1fr) minmax(0, 1fr); }
+  .shape-head { color: var(--readout-3); padding-bottom: 8px; }
+  .shape-head > span { padding: 0 16px; }
+  .shape-head > span:first-child { padding-left: 0; }
+  .shape { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .shape-row { background: var(--scope-2); border: 1px solid var(--scope-line-2); color: var(--readout); text-decoration: none; transition: background-color .18s var(--ease-out); }
+  .scope .shape a.shape-row { color: var(--readout); }
+  .shape-row > span { padding: 14px 16px; min-width: 0; }
+  .shape-row > span + span { border-left: 1px solid var(--scope-line); }
+  .shape-row:hover { background: var(--scope-3); text-decoration: none; }
+  .shape-n { background: var(--blue); color: #fff; font-family: var(--mono); font-weight: 600; font-size: 0.8rem; }
+  .shape-f { color: var(--readout-2); font-size: 0.96rem; line-height: 1.55; }
+  .shape-d { color: var(--readout); font-weight: 600; font-size: 0.96rem; line-height: 1.5; }
+  .shape-row:hover .shape-d { color: #fff; }
+  .shape-more { margin-top: 28px; }
+
+  @media (max-width: 760px) {
+    .shape-head { display: none; }
+    .shape-row { grid-template-columns: 52px minmax(0, 1fr); }
+    .shape-n { grid-row: 1 / 3; }
+    .shape-d { grid-column: 2; border-left: 1px solid var(--scope-line); border-top: 1px solid var(--scope-line); }
+  }
+</style>

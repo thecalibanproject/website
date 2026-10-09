@@ -1,0 +1,133 @@
+---
+// Cited, published results on the scope surface, set as a bay of flight strips. Each finding is a
+// strip with its source ticket: a code cell, the finding sentence (with the reported value as an inline
+// mono datum and, where the value is a share, a range bar on a fixed 0–100 scale) and the source links.
+// None are Caliban measurements. Caveats are set in readout text under a caps label, never in amber.
+export interface EvidenceBar {
+  /** fill: 0 → v. span: a → b (a reported range). shift: a → b (before and after). pair: a vs b. */
+  kind: 'fill' | 'span' | 'shift' | 'pair';
+  values: number[];
+  /** Open-ended upper value, e.g. “> 90%”. */
+  open?: boolean;
+}
+export interface EvidenceItem {
+  value?: string;
+  label: string;
+  detail?: string;
+  sources: { label: string; href: string }[];
+  caveat?: string;
+  bar?: EvidenceBar;
+}
+interface Props {
+  id?: string;
+  title: string;
+  lead?: string;
+  items: EvidenceItem[];
+  note?: string;
+  notes?: { label: string; href: string }[];
+  /** Prefix for the code cell, e.g. EV (evidence) or FX (fact). */
+  code?: string;
+  /** Caps key for the inline value. */
+  valueKey?: string;
+}
+const { id, title, lead, items, note, notes = [], code = 'EV', valueKey = 'Reported' } = Astro.props;
+const headId = `${id ?? 'evidence'}-title`;
+const pct = (v: number) => `${Math.max(0, Math.min(100, v))}%`;
+const barStyle = (b: EvidenceBar) => {
+  const [a, z = a] = b.values;
+  if (b.kind === 'fill') return `left:0;width:${pct(a)}`;
+  const lo = Math.min(a, z), hi = Math.max(a, z);
+  return `left:${pct(lo)};width:${pct(Math.max(hi - lo, 0.6))}`;
+};
+---
+<section class="section scope egrid" id={id} aria-labelledby={headId}>
+  <div class="container">
+    <div class:list={['head', { solo: !lead }]}>
+      <h2 id={headId} class="head-sm">{title}</h2>
+      {lead && <p>{lead}</p>}
+    </div>
+    <ol class="strip-bay eg-bay">
+      {items.map((it, i) => (
+        <li class="strip eg-strip">
+          <span class="code-cell eg-code"><span>{code}{String(i + 1).padStart(2, '0')}</span></span>
+          <div class="eg-main">
+            <h3 class="eg-finding">{it.label}</h3>
+            {it.detail && <p class="eg-detail">{it.detail}</p>}
+            {(it.value || it.bar) && (
+              <div class="eg-data">
+                {it.value && <p class="eg-value"><span class="cap">{valueKey}</span><span class="datum">{it.value}</span></p>}
+                {it.bar && (
+                  <div class:list={['eg-bar', it.bar.kind, { open: it.bar.open }]} aria-hidden="true">
+                    <span class="eg-track">
+                      <span class="eg-fill" style={barStyle(it.bar)}></span>
+                      {(it.bar.kind === 'pair' || it.bar.kind === 'shift') && it.bar.values.map((v, j) => (
+                        <span class:list={['eg-mark', { to: it.bar!.kind === 'shift' && j === 1 }]} style={`left:${pct(v)}`}></span>
+                      ))}
+                    </span>
+                    <span class="eg-axis datum"><span>0</span><span>50</span><span>100</span></span>
+                  </div>
+                )}
+              </div>
+            )}
+            {it.caveat && <p class="eg-caveat"><span class="cap">Caveat</span><span>{it.caveat}</span></p>}
+          </div>
+          <div class="eg-src">
+            <span class="cap">{it.sources.length > 1 ? 'Sources' : 'Source'}</span>
+            <ul>
+              {it.sources.map((s) => (
+                <li>{s.href.startsWith('/') ? <a href={s.href}>{s.label}</a> : <a href={s.href} target="_blank" rel="noopener noreferrer">{s.label}</a>}</li>
+              ))}
+            </ul>
+          </div>
+        </li>
+      ))}
+    </ol>
+    <p class="eg-foot">
+      {note ?? 'Published third-party results, quoted in the research notes and linked to their sources. They are not Caliban benchmarks; Caliban has not published measurements of its own.'}
+      {notes.length > 0 && <> Read more in {notes.map((n, i) => <>{i > 0 && (i === notes.length - 1 ? ' and ' : ', ')}<a href={n.href}>{n.label}</a></>)}.</>}
+    </p>
+  </div>
+</section>
+
+<style>
+  .eg-bay { list-style: none; margin: 0; padding: 0; }
+  .eg-strip { --cols: 72px minmax(0, 1fr) minmax(180px, 0.3fr); }
+  .eg-code { font-size: 0.76rem; }
+  .eg-main { padding: 16px 20px 18px !important; }
+  .eg-finding { color: var(--readout); font-size: 1.08rem; line-height: 1.4; max-width: 64ch; }
+  .eg-detail { margin-top: 6px; font-size: 0.95rem !important; line-height: 1.6; max-width: 72ch; }
+  .eg-data { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 28px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--scope-line); }
+  .eg-value { display: inline-flex; align-items: baseline; gap: 10px; }
+  .eg-value .cap { color: var(--readout-3); font-size: 0.72rem; }
+  .eg-value .datum { color: var(--readout); font-size: 0.86rem; font-weight: 600; font-variant-numeric: tabular-nums slashed-zero; }
+
+  /* Range bar on a fixed 0–100 scale: a 1px track with quarter ticks, the reported share in blue. */
+  .eg-bar { width: min(100%, 300px); display: grid; gap: 3px; }
+  .eg-track { position: relative; display: block; height: 10px; border-left: 1px solid var(--scope-line-2); border-right: 1px solid var(--scope-line-2);
+    background:
+      linear-gradient(var(--scope-line-2), var(--scope-line-2)) 0 50% / 100% 1px no-repeat,
+      linear-gradient(90deg, transparent calc(50% - 0.5px), var(--scope-line-2) calc(50% - 0.5px), var(--scope-line-2) calc(50% + 0.5px), transparent calc(50% + 0.5px)) 0 0 / 100% 100% no-repeat,
+      linear-gradient(90deg, transparent calc(25% - 0.5px), var(--scope-line) calc(25% - 0.5px), var(--scope-line) calc(25% + 0.5px), transparent calc(25% + 0.5px), transparent calc(75% - 0.5px), var(--scope-line) calc(75% - 0.5px), var(--scope-line) calc(75% + 0.5px), transparent calc(75% + 0.5px)) 0 3px / 100% 4px no-repeat; }
+  .eg-fill { position: absolute; top: 2px; bottom: 2px; background: var(--blue-hi); }
+  .eg-bar.pair .eg-fill, .eg-bar.shift .eg-fill { top: 4px; bottom: 4px; background: var(--scope-line-2); }
+  .eg-bar.open .eg-fill { background: linear-gradient(90deg, var(--blue-hi) calc(100% - 10px), transparent); }
+  .eg-mark { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1.5px; background: var(--readout); }
+  .eg-mark.to { background: var(--blue-hi); box-shadow: 0 0 0 1px var(--readout); }
+  .eg-axis { display: flex; justify-content: space-between; color: var(--readout-3); font-size: 0.6rem; line-height: 1; }
+
+  .eg-caveat { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: baseline; margin-top: 10px; font-size: 0.9rem !important; line-height: 1.55; max-width: 72ch; }
+  .eg-caveat .cap { color: var(--readout); font-size: 0.72rem; padding: 1px 6px; box-shadow: inset 0 0 0 1px var(--scope-line-2); }
+  .eg-src { display: grid; gap: 6px; align-content: start; padding: 16px 16px 18px !important; }
+  .eg-src .cap { color: var(--readout-3); font-size: 0.72rem; }
+  .eg-src ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .eg-src li { font-size: 0.9rem; line-height: 1.35; overflow-wrap: anywhere; }
+  .eg-foot { margin-top: 28px; padding-top: 16px; color: var(--readout-3); font-size: 0.9rem; max-width: 90ch; }
+
+  @media (max-width: 860px) {
+    .eg-strip { --cols: 56px minmax(0, 1fr); }
+    .eg-code { grid-row: 1 / 3; }
+    .eg-src { grid-column: 2; border-top: 1px solid var(--scope-line); display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; padding: 10px 16px 12px !important; }
+    .eg-src ul { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+    .eg-main { padding: 14px 16px 16px !important; }
+  }
+</style>

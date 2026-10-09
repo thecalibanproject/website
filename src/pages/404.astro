@@ -1,0 +1,106 @@
+---
+import Base from '../layouts/Base.astro';
+import { PLATFORM_LINKS } from '../config';
+
+const links = [
+  { label: 'Home', href: '/' },
+  { label: 'Architecture', href: '/architecture/' },
+  { label: 'Research', href: '/research/' },
+  { label: 'Developers', href: '/developers/' },
+];
+---
+<Base title="Page not found" description="This part of the island is uncharted.">
+  <section class="nf scope" aria-labelledby="nf-title">
+    <div class="container nf-grid">
+      <div class="nf-text">
+        <h1 id="nf-title" class="ph-title">This part of the island is uncharted</h1>
+        <p class="nf-lead">The page you asked for doesn’t exist, or it moved. Caliban knows every inch of your data; this website is smaller. Try one of these instead.</p>
+        <div class="nf-links">
+          {links.map((l, i) => <a class:list={['btn', i === 0 ? 'btn-primary' : 'btn-secondary']} href={l.href}>{l.label}</a>)}
+        </div>
+      </div>
+
+      <div class="nf-held" aria-label="Request status">
+        <div class="held">
+          <span class="held-code"><span>HOLD</span><b>404</b></span>
+          <dl class="held-cells">
+            <div><dt class="cap">Request</dt><dd class="datum" data-nf-path>unknown route</dd></div>
+            <div><dt class="cap">Status</dt><dd>Not found</dd></div>
+            <div><dt class="cap">Cleared</dt><dd>Denied</dd></div>
+          </dl>
+        </div>
+        <p class="held-note">No route on this site matches the path. Pick a destination below.</p>
+      </div>
+    </div>
+
+    <div class="container">
+      <p class="cap nf-cap">Platform</p>
+      <ul class="nf-platform">
+        {PLATFORM_LINKS.map((l) => (
+          <li>
+            <a class="nf-strip" href={l.href}>
+              <span class="nf-code">{l.code}</span>
+              <span class="nf-name">{l.label}</span>
+              <span class="nf-desc">{l.description}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+</Base>
+
+<script>
+  const el = document.querySelector<HTMLElement>('[data-nf-path]');
+  if (el && location.pathname) el.textContent = location.pathname;
+</script>
+
+<style>
+  .nf { padding: 72px 0 112px; border-bottom: 1px solid var(--scope-line-2);
+    background:
+      radial-gradient(50% 70% at 76% 30%, rgba(29, 78, 216, 0.16), transparent 70%),
+      linear-gradient(var(--scope-line) 1px, transparent 1px) -1px -1px / 96px 96px,
+      linear-gradient(90deg, var(--scope-line) 1px, transparent 1px) -1px -1px / 96px 96px,
+      var(--scope-1); }
+  .nf-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: 56px; align-items: center; }
+  .nf-lead { margin-top: 22px; color: var(--readout-2); font-size: 1.15rem; line-height: 1.55; max-width: 52ch; }
+  .nf-links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+
+  .held { display: grid; grid-template-columns: 104px minmax(0, 1fr); background: var(--strip); border: 1px solid var(--rule); color: var(--ink); }
+  .held-code { background: var(--amber); color: var(--scope-1); display: flex; flex-direction: column; justify-content: space-between; gap: 18px; padding: 14px; font-family: var(--mono); font-weight: 600; font-size: 0.78rem; }
+  .held-code b { font-family: var(--display); font-weight: 700; font-size: 2.2rem; line-height: 1; letter-spacing: -0.01em; }
+  .held-cells { margin: 0; display: grid; }
+  .held-cells > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); border-left: 1px solid var(--rule); }
+  .held-cells > div + div { border-top: 1px solid var(--rule); }
+  .held-cells dt, .held-cells dd { margin: 0; padding: 12px 14px; min-width: 0; }
+  .held-cells dt { color: var(--ink-3); border-right: 1px solid var(--rule); }
+  .held-cells dd { color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+  .held-cells dd.datum { font-weight: 500; color: var(--amber-ink); }
+  .held-note { margin-top: 12px; color: var(--readout-3); font-size: 0.9rem; }
+
+  .nf-cap { color: var(--readout-3); margin: 72px 0 12px; padding-bottom: 10px; border-bottom: 1px solid var(--scope-line-2); }
+  .nf-platform { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+  .scope .nf-platform a.nf-strip { display: grid; grid-template-columns: 64px minmax(0, 0.55fr) minmax(0, 1fr); background: var(--scope-2); border: 1px solid var(--scope-line-2); color: var(--readout); text-decoration: none; height: 100%; transition: background-color .18s var(--ease-out); }
+  .nf-strip > span { padding: 12px 14px; min-width: 0; }
+  .nf-strip > span + span { border-left: 1px solid var(--scope-line); }
+  .scope .nf-platform a.nf-strip:hover { background: var(--scope-3); color: #fff; }
+  .nf-code { background: var(--blue); color: #fff; font-family: var(--mono); font-weight: 600; font-size: 0.78rem; }
+  .nf-name { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; font-size: 1.15rem; line-height: 1.1; }
+  .nf-desc { color: var(--readout-2); font-size: 0.92rem; line-height: 1.45; }
+
+  @media (max-width: 1080px) {
+    .nf-grid { grid-template-columns: minmax(0, 1fr); gap: 40px; }
+    .nf-platform { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .nf { padding: 44px 0 72px; }
+    .held { grid-template-columns: 78px minmax(0, 1fr); }
+    .held-code b { font-size: 2rem; }
+    .held-cells > div { grid-template-columns: minmax(0, 1fr); }
+    .held-cells dt { border-right: 0; padding-bottom: 0; }
+    .held-cells dd { padding-top: 4px; }
+    .scope .nf-platform a.nf-strip { grid-template-columns: 56px minmax(0, 1fr); }
+    .nf-code { grid-row: 1 / 3; }
+    .nf-desc { grid-column: 2; border-top: 1px solid var(--scope-line); }
+  }
+</style>

@@ -1,0 +1,661 @@
+---
+import { statSync } from 'node:fs';
+import { resolve } from 'node:path';
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Close from '../components/air/Close.astro';
+import { SHAPES } from '../data/hardware';
+
+const size = (f: string) => {
+  const b = statSync(resolve(process.cwd(), 'public', f)).size;
+  return b < 1024 ? `${b} B` : `${(b / 1024).toFixed(b < 10240 ? 1 : 0)} KB`;
+};
+
+const variants = [
+  { file: 'brand/logo.svg', name: 'Logo', note: 'Full colour, for white and light backgrounds', bg: 'light', w: 220 },
+  { file: 'brand/logo-white.svg', name: 'Logo, white', note: 'For navy and deep-blue backgrounds', bg: 'dark', w: 220 },
+  { file: 'brand/logo-mark.svg', name: 'Mark', note: 'When space is tight or the name is already present', bg: 'light', w: 96 },
+  { file: 'brand/logo-mark-white.svg', name: 'Mark, white', note: 'The mark on dark backgrounds', bg: 'dark', w: 96 },
+  { file: 'brand/wordmark.svg', name: 'Wordmark', note: 'Converted to outlines; renders without any font installed', bg: 'light', w: 190 },
+  { file: 'brand/favicon.svg', name: 'App icon', note: 'Navy tile with the light mark', bg: 'ice', w: 96 },
+];
+
+const downloads = [
+  ['brand/logo.svg', 'Logo, full colour', 'SVG'],
+  ['brand/logo-white.svg', 'Logo, white', 'SVG'],
+  ['brand/logo-mark.svg', 'Mark, full colour', 'SVG'],
+  ['brand/logo-mark-white.svg', 'Mark, white', 'SVG'],
+  ['brand/wordmark.svg', 'Wordmark', 'SVG'],
+  ['brand/favicon.svg', 'App icon', 'SVG'],
+  ['brand/icon-512.png', 'App icon, 512 × 512', 'PNG'],
+  ['brand/apple-touch-icon.png', 'Touch icon, 180 × 180', 'PNG'],
+  ['brand/favicon-32.png', 'Favicon, 32 × 32', 'PNG'],
+  ['brand/og-image.png', 'Social card, 1200 × 630', 'PNG'],
+  ['brand/og-image.svg', 'Social card, 1200 × 630', 'SVG'],
+  ['fonts/OFL-B612.txt', 'B612 and B612 Mono licence (OFL-1.1)', 'TXT'],
+  ['fonts/OFL-IBMPlexMono.txt', 'IBM Plex Mono licence (OFL-1.1)', 'TXT'],
+  ['fonts/OFL-Atkinson.txt', 'Atkinson Hyperlegible Next licence (OFL-1.1)', 'TXT'],
+].map(([file, name, kind]) => ({ file, name, kind, size: size(file) }));
+
+interface Swatch { token: string; hex: string; name: string; use: string; dark: boolean }
+const palettes: { id: string; title: string; note: string; items: Swatch[] }[] = [
+  {
+    id: 'scope', title: 'Scope', note: 'Dark instrument surfaces: heroes, interactive and instrument sections.',
+    items: [
+      { token: '--scope-0', hex: '#040B1C', name: 'Scope 0', use: 'Navigation bar and footer', dark: true },
+      { token: '--scope-1', hex: '#06122A', name: 'Scope 1', use: 'The scope surface', dark: true },
+      { token: '--scope-2', hex: '#0A1A39', name: 'Scope 2', use: 'Panels and strips on the scope', dark: true },
+      { token: '--scope-3', hex: '#0F2448', name: 'Scope 3', use: 'Hover and quiet code cells', dark: true },
+      { token: '--ring', hex: '#1C3B73', name: 'Ring', use: 'Radar rings and range marks', dark: true },
+      { token: '--target', hex: '#7CC4FF', name: 'Target', use: 'Targets, leader lines, links on the scope', dark: false },
+      { token: '--readout', hex: '#E8F1FF', name: 'Readout', use: 'Text and numerals on the scope', dark: false },
+      { token: '--readout-2', hex: '#A9BEDF', name: 'Readout 2', use: 'Secondary text on the scope', dark: false },
+      { token: '--readout-3', hex: '#7F96BD', name: 'Readout 3', use: 'Engraved caps and units', dark: false },
+    ],
+  },
+  {
+    id: 'ink', title: 'Owned ink', note: 'One owned blue is the only chromatic ink. Amber appears only for holds and denials. There is no green: built is a filled blue square, planned a hollow one.',
+    items: [
+      { token: '--blue', hex: '#1D4ED8', name: 'Caliban blue', use: 'Code cells, selected keys, primary actions, links', dark: true },
+      { token: '--blue-hi', hex: '#3E6CF2', name: 'Blue high', use: 'Hover on blue, the core on the scope', dark: true },
+      { token: '--blue-deep', hex: '#102E7A', name: 'Blue deep', use: 'Code and ids set on paper', dark: true },
+      { token: '--amber', hex: '#F2B544', name: 'Amber', use: 'Holds and denials only', dark: false },
+      { token: '--amber-ink', hex: '#8A5A00', name: 'Amber ink', use: 'Amber text on paper: holds and denials only', dark: true },
+    ],
+  },
+  {
+    id: 'paper', title: 'Strip paper', note: 'Light surfaces for reading, ruled like a flight-strip board.',
+    items: [
+      { token: '--paper', hex: '#F6F9FD', name: 'Paper', use: 'Page background for reading', dark: false },
+      { token: '--strip', hex: '#E8F1FF', name: 'Strip', use: 'Ice flight strips, ledgers and table cells', dark: false },
+      { token: '--strip-2', hex: '#DCE9F7', name: 'Strip 2', use: 'Table heads and quiet code cells', dark: false },
+      { token: '--rule', hex: '#BFD1EA', name: 'Rule', use: 'The 1px rule between cells', dark: false },
+      { token: '--rule-2', hex: '#A6BCDB', name: 'Rule 2', use: 'Heavier rules and field borders', dark: false },
+      { token: '--ink', hex: '#0A1430', name: 'Ink', use: 'Headings and body text', dark: true },
+      { token: '--ink-2', hex: '#26324F', name: 'Ink 2', use: 'Running text', dark: true },
+      { token: '--ink-3', hex: '#4F5D7C', name: 'Ink 3', use: 'Captions and labels', dark: true },
+    ],
+  },
+];
+
+const families = [
+  {
+    code: 'DSP', name: 'B612', weights: 'Regular 400 · Italic 400 · Bold 700',
+    use: 'Display: h1 and h2 in mixed case, and the small caps on buttons, tabs and labels. Designed by Airbus with Intactile Design for cockpit displays.',
+    cls: 'f-display', sample: 'Bring the models to your data.',
+  },
+  {
+    code: 'TXT', name: 'Atkinson Hyperlegible Next', weights: 'Variable 200–800 · Italic',
+    use: 'Body copy, h3 and h4, and long-form reading. Drawn for the Braille Institute so similar letters never blur together.',
+    cls: 'f-body', sample: 'Caliban is the single AI endpoint for your company. Every request is identified, routed to the right model and answered on hardware you control.',
+  },
+  {
+    code: 'DAT', name: 'IBM Plex Mono', weights: 'Regular 400 · Medium 500 · SemiBold 600 · Bold 700',
+    use: 'Code, data, ids and measurements only. Never decoration, never sentences.',
+    cls: 'f-mono', sample: 'client = OpenAI(base_url="http://localhost:8080/v1") · local/qwen3.8-27b · 0.00000000',
+  },
+  {
+    code: 'SCP', name: 'B612 Mono', weights: 'Regular 400 · Bold 700',
+    use: 'The radar scope only: canvas data blocks and the live readouts. Its cockpit lineage pays there and nowhere else.',
+    cls: 'f-scope', sample: 'INI 868C  OPENAI/GPT-5-MINI  04  0003',
+  },
+];
+
+const rules = [
+  ['Amber', 'Only for holds and denials. Never for emphasis, caveats or estimates.'],
+  ['Status', 'Built is a filled blue square; planned is a hollow square. No green.'],
+  ['Mono', 'IBM Plex Mono for code, data, ids and measurements; B612 Mono only on the scope and its readouts. Sentences are set in sans.'],
+  ['Headings', 'No eyebrow or kicker labels above headings. The heading speaks first.'],
+  ['Numbers', 'Only when the sequence carries information: stage order, note ids, install steps.'],
+  ['Shape', 'Square corners and 1px rules. No shadows unless the depth is real.'],
+];
+
+const dos = [
+  { t: 'Use the full-colour logo on white or light backgrounds.', k: 'light' },
+  { t: 'Use the white logo on navy, deep blue or brand-blue backgrounds.', k: 'dark' },
+  { t: 'Give it room: keep clear space around the logo at least the height of the mark’s core.', k: 'space' },
+];
+const donts = [
+  { t: 'Don’t recolour the mark or swap its blues.', k: 'recolour' },
+  { t: 'Don’t stretch, squash or skew it.', k: 'stretch' },
+  { t: 'Don’t rotate it: the opening always faces right, toward the moon.', k: 'rotate' },
+  { t: 'Don’t put the full-colour logo on dark or busy backgrounds.', k: 'contrast' },
+  { t: 'Don’t add shadows, outlines or other effects.', k: 'effects' },
+  { t: 'Don’t move the moon out of the orbit’s opening.', k: 'moon' },
+];
+
+const shape0 = SHAPES.find((x) => x.id === 'airgap')!;
+const shapePayload = JSON.stringify(SHAPES.map(({ id, dataPlane, controlPlane, connectivity }) => ({ id, dataPlane, controlPlane, connectivity }))).replace(/</g, '\\u003c');
+const ticks = Array.from({ length: 36 }, (_, i) => i * 10);
+---
+<Base title="Brand" description="The Caliban name and mark: Shakespeare's islander and the moon of Uranus, an orbit around a sovereign core. Logos, colour tokens, typography, components and usage rules, with downloads.">
+  <PageHero
+    crumbs={[{ label: 'Brand' }]}
+    title="Caliban knows every inch of your island"
+    lead="It keeps your data sovereign and orbits every model. The name, the mark, the system around them and how to use them."
+  >
+    <Fragment slot="actions">
+      <a class="btn btn-primary" href="#downloads">Download the assets</a>
+      <a class="btn btn-secondary" href="#name">The name</a>
+    </Fragment>
+    <figure slot="visual" class="b-scope" aria-hidden="true">
+      <svg viewBox="0 0 400 400">
+        <circle cx="200" cy="200" r="180" class="rg" />
+        <circle cx="200" cy="200" r="138" class="rg" />
+        <circle cx="200" cy="200" r="96" class="rg" />
+        <line x1="20" y1="200" x2="380" y2="200" class="ax" />
+        <line x1="200" y1="20" x2="200" y2="380" class="ax" />
+        {ticks.map((t) => <line x1="200" y1="14" x2="200" y2={t % 30 === 0 ? 26 : 20} class="tk" transform={`rotate(${t} 200 200)`} />)}
+        <text x="200" y="10" text-anchor="middle" class="tl">000</text>
+        <text x="392" y="204" text-anchor="end" class="tl">090</text>
+        <text x="200" y="398" text-anchor="middle" class="tl">180</text>
+        <text x="8" y="204" class="tl">270</text>
+      </svg>
+      <img src="/brand/logo-mark-white.svg" alt="" width="150" height="150" />
+    </figure>
+  </PageHero>
+
+  <section class="section paper" id="name" aria-labelledby="name-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="name-title">An islander and a moon</h2>
+        <p>Two Calibans, and both describe what the product does.</p>
+      </div>
+      <div class="name-grid">
+        <article class="nm isle">
+          <span class="nm-code"><span class="nm-tag">ISLE</span></span>
+          <div class="nm-body">
+            <h3>The native who knows every inch of the island</h3>
+            <p class="nm-src">William Shakespeare, <em>The Tempest</em></p>
+            <blockquote>
+              <p>“Be not afeard; the isle is full of noises.”</p>
+              <footer>Caliban, <cite>The Tempest</cite></footer>
+            </blockquote>
+            <p>In <em>The Tempest</em>, Caliban is the island’s native. He knows its springs, its paths and its sounds better than anyone who arrives on its shores. Your company’s data is that island, and a gateway that grounds every answer in it should know it just as well.</p>
+          </div>
+        </article>
+        <article class="nm moon scope">
+          <span class="nm-code"><span class="nm-tag">XVI</span></span>
+          <div class="nm-body">
+            <h3>The moon that orbits the other way</h3>
+            <p class="nm-src">Uranus XVI</p>
+            <svg class="orbit-art" viewBox="0 0 320 170" role="img" aria-label="Caliban on a wide, retrograde orbit around Uranus">
+              <ellipse cx="160" cy="85" rx="140" ry="58" class="orb" transform="rotate(-8 160 85)" />
+              <path d="M 44 70 q -6 -12 4 -24" class="dir" />
+              <polygon points="46,44 54,48 44,52" class="dir-head" />
+              <circle cx="160" cy="85" r="22" class="uranus" />
+              <ellipse cx="160" cy="85" rx="34" ry="6" class="ring-u" />
+              <rect x="286" y="56" width="12" height="12" class="cal" />
+              <text x="160" y="130" text-anchor="middle" class="lbl">URANUS</text>
+              <text x="292" y="44" text-anchor="middle" class="lbl">CALIBAN</text>
+              <text x="22" y="106" class="lbl small">RETROGRADE</text>
+            </svg>
+            <p>Caliban is also a moon of Uranus, designated Uranus XVI and discovered in 1997. It is an irregular moon on a distant, retrograde orbit: it circles the planet in the opposite direction to the planet’s rotation, far out from everything else.</p>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section scope" id="mark" aria-labelledby="mark-title">
+    <div class="container split mark-split">
+      <div>
+        <div class="head solo mark-head">
+          <h2 id="mark-title" class="head-sm">An orbit around a sovereign core, with a moon in its opening</h2>
+        </div>
+        <ol class="strip-bay meaning">
+          <li class="strip"><span class="code-cell">ORB</span><div><h3 class="strip-title">The orbit “C”</h3><p>Caliban orbits every model: one endpoint that reaches open-weight models on your hardware and the providers you choose.</p></div></li>
+          <li class="strip"><span class="code-cell">CORE</span><div><h3 class="strip-title">The sovereign core</h3><p>Your data stays at the centre, inside your boundary. Everything else moves around it.</p></div></li>
+          <li class="strip"><span class="code-cell">MOON</span><div><h3 class="strip-title">The moon in the opening</h3><p>Caliban itself, Uranus XVI, sitting where the orbit opens: the one that knows every inch of the island.</p></div></li>
+        </ol>
+      </div>
+      <div class="mark-art">
+        <svg viewBox="0 0 420 260" role="img" aria-label="The Caliban mark with its three parts labelled: orbit, core and moon">
+          <defs><linearGradient id="mk" x1="10" y1="54" x2="54" y2="10" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#DCEBFF" /><stop offset="1" stop-color="#FFFFFF" /></linearGradient></defs>
+          <circle cx="210" cy="130" r="92" class="guide" />
+          <g transform="translate(130 50) scale(2.5)">
+            <path d="M48.35 17.28A22 22 0 1 0 48.35 46.72" fill="none" stroke="url(#mk)" stroke-width="8.5" stroke-linecap="round" />
+            <circle cx="32" cy="32" r="6.5" fill="#FFFFFF" />
+            <circle cx="54" cy="32" r="4.8" fill="#6CB8FF" />
+          </g>
+          <line x1="152" y1="78" x2="96" y2="40" class="call" /><rect x="149" y="75" width="6" height="6" class="dot" />
+          <rect x="20" y="20" width="40" height="20" class="mcell" /><text x="40" y="34" text-anchor="middle" class="mnum">ORB</text>
+          <text x="68" y="35" class="ml">Orbit “C”</text>
+          <line x1="204" y1="138" x2="110" y2="222" class="call" /><rect x="201" y="135" width="6" height="6" class="dot" />
+          <rect x="20" y="222" width="46" height="20" class="mcell" /><text x="43" y="236" text-anchor="middle" class="mnum">CORE</text>
+          <text x="74" y="237" class="ml">Sovereign core</text>
+          <line x1="268" y1="122" x2="318" y2="60" class="call" /><rect x="265" y="119" width="6" height="6" class="dot" />
+          <rect x="300" y="34" width="46" height="20" class="mcell" /><text x="323" y="48" text-anchor="middle" class="mnum">MOON</text>
+          <text x="354" y="49" class="ml">Moon</text>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <section class="section paper" id="logo" aria-labelledby="logo-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="logo-title">Variants for light and dark</h2>
+        <p>Every file is a vector generated by <code>website/brand/make_brand.py</code>. The wordmark is converted to outlines, so it renders the same without any font installed.</p>
+      </div>
+      <ul class="variants">
+        {variants.map((v) => (
+          <li class="variant">
+            <div class:list={['v-stage', v.bg]}><img src={`/${v.file}`} alt={`Caliban ${v.name.toLowerCase()}`} width={v.w} height="64" style={`width:${v.w}px`} /></div>
+            <div class="v-meta">
+              <div><h3>{v.name}</h3><p>{v.note}</p></div>
+              <a class="btn btn-secondary btn-sm" href={`/${v.file}`} download aria-label={`Download ${v.name} (SVG)`}>SVG</a>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section paper colour" id="colour" aria-labelledby="colour-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="colour-title">One owned blue, a scope and strip paper</h2>
+        <p>The tokens are CSS custom properties in <code>src/styles/global.css</code>. The scope carries instruments, strip paper carries reading, and one blue is the only chromatic ink. Click a swatch to copy its hex value.</p>
+      </div>
+      {palettes.map((pal) => (
+        <div class="pal">
+          <div class="pal-head">
+            <h3 class="strip-title">{pal.title}</h3>
+            <p>{pal.note}</p>
+          </div>
+          <ul class="swatches" style={`--n:${pal.items.length}`}>
+            {pal.items.map((c) => (
+              <li>
+                <button type="button" class="swatch" data-copy={c.hex} aria-label={`Copy ${c.name} ${c.hex}`}>
+                  <span class:list={['sw-chip', { dk: c.dark }]} style={`background:${c.hex}`}><span class="sw-copied cap" aria-hidden="true">Copied</span></span>
+                  <span class="sw-meta"><strong>{c.name}</strong><span class="datum sw-hex">{c.hex}</span><span class="datum sw-token">{c.token}</span><span class="sw-use">{c.use}</span></span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      <p class="sr-only" aria-live="polite" data-copy-status></p>
+    </div>
+  </section>
+
+  <section class="section paper type" id="type" aria-labelledby="type-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="type-title">B612, Atkinson Hyperlegible Next, IBM Plex Mono</h2>
+        <p>Four families, served from this site as WOFF2 files. No font CDN is involved. All are licensed under the SIL Open Font License 1.1: <a href="/fonts/OFL-B612.txt">B612 and B612 Mono</a>, <a href="/fonts/OFL-Atkinson.txt">Atkinson Hyperlegible Next</a>, <a href="/fonts/OFL-IBMPlexMono.txt">IBM Plex Mono</a>.</p>
+      </div>
+      <ol class="strip-bay families">
+        {families.map((f) => (
+          <li class="strip fam">
+            <span class="code-cell">{f.code}</span>
+            <dl class="fam-meta">
+              <dt class="strip-title">{f.name}</dt>
+              <dd class="datum fam-w">{f.weights}</dd>
+              <dd class="fam-use">{f.use}</dd>
+            </dl>
+            <div class="fam-sample">
+              <p class:list={['fam-big', f.cls]}>{f.sample}</p>
+              <p class:list={['fam-chars', f.cls]}>ABCDEFGHIJKLMNOPQRSTUVWXYZ<br />abcdefghijklmnopqrstuvwxyz<br />0123456789</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <section class="section paper comp" id="components" aria-labelledby="comp-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="comp-title">Strips, readouts and key banks</h2>
+        <p>The site is built from a handful of instrument parts. These are live examples, styled by the same tokens and classes the pages use.</p>
+      </div>
+
+      <div class="comp-grid">
+        <div class="comp-col">
+          <h3 class="comp-h cap">Strip</h3>
+          <p class="comp-d">A ruled row with a filled code cell on the left and cells divided by 1px rules. The site’s universal row.</p>
+          <div class="strip-bay">
+            <div class="strip demo-strip"><span class="code-cell"><span>01</span><span>CLR</span></span><span><b>Clear</b><br /><span class="demo-sub">Identify the caller, apply policy, reserve the budget.</span></span><span class="datum">600 rpm · 400k tpm</span></div>
+            <div class="strip demo-strip"><span class="code-cell hold"><span>HOLD</span><span>429</span></span><span><b>Held at clear</b><br /><span class="demo-sub">Over the token budget.</span></span><span class="datum">retry-after: 3</span></div>
+          </div>
+
+          <h3 class="comp-h cap">Ruled ledger</h3>
+          <p class="comp-d">Definition rows separated by rules, labels in engraved caps.</p>
+          <dl class="ledger">
+            <div><dt class="cap">Data plane</dt><dd>One Rust binary</dd></div>
+            <div><dt class="cap">Keys</dt><dd>BYOK, never pooled</dd></div>
+            <div><dt class="cap">Egress</dt><dd>Deny by default</dd></div>
+          </dl>
+
+          <h3 class="comp-h cap">Section head</h3>
+          <p class="comp-d">Heading left, lede right, a rule below. No eyebrow above it.</p>
+          <div class="head head-demo" aria-hidden="true">
+            <p class="hd-h">One request. Seven stages.</p>
+            <p>The same deterministic path on every call, in the gateway’s real order.</p>
+          </div>
+        </div>
+
+        <div class="comp-col scope comp-scope">
+          <h3 class="comp-h cap">Readout</h3>
+          <p class="comp-d">Fixed-place mono numerals with an engraved caps unit beneath.</p>
+          <dl class="demo-readouts">
+            <div class="readout"><dt><span>In scope</span></dt><dd><b>04</b></dd></div>
+            <div class="readout"><dt><span>PII surrogated</span></dt><dd><b>03</b></dd></div>
+            <div class="readout"><dt><span>Landed</span></dt><dd><b>0128</b></dd></div>
+          </dl>
+
+          <h3 class="comp-h cap">Key bank</h3>
+          <p class="comp-d">Square segmented keys; the selected key is filled blue. Try it.</p>
+          <form class="demo-keys" data-demo-keys onsubmit="return false">
+            <fieldset>
+              <legend class="sr-only">Where it runs</legend>
+              <div class="keys">
+                {SHAPES.map((x) => (
+                  <label class="key">
+                    <input type="radio" name="demo-shape" value={x.id} checked={x.id === shape0.id} />
+                    <span>{x.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <dl class="ledger demo-ledger" aria-live="polite">
+              <div><dt class="cap">Data plane</dt><dd data-k="dataPlane">{shape0.dataPlane}</dd></div>
+              <div><dt class="cap">Control plane</dt><dd data-k="controlPlane">{shape0.controlPlane}</dd></div>
+              <div><dt class="cap">Connectivity</dt><dd data-k="connectivity">{shape0.connectivity}</dd></div>
+            </dl>
+          </form>
+          <script is:inline type="application/json" data-demo-shapes set:html={shapePayload} />
+        </div>
+      </div>
+
+      <div class="rules-wrap">
+        <h3 class="comp-h cap">Rules</h3>
+        <dl class="ledger rules">
+          {rules.map(([k, v]) => <div><dt class="cap">{k}</dt><dd>{v}</dd></div>)}
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <section class="section paper" id="usage" aria-labelledby="usage-title">
+    <div class="container">
+      <div class="head solo">
+        <h2 id="usage-title">Do’s and don’ts</h2>
+      </div>
+      <ul class="usage dos">
+        {dos.map((d) => (
+          <li>
+            <div class:list={['u-stage', d.k]}>
+              <img src={d.k === 'dark' ? '/brand/logo-white.svg' : '/brand/logo.svg'} alt="" width="170" height="47" />
+              {d.k === 'space' && <span class="space-box" aria-hidden="true"></span>}
+            </div>
+            <p class="u-cap"><span class="u-k do">Do</span><span>{d.t}</span></p>
+          </li>
+        ))}
+      </ul>
+      <ul class="usage donts">
+        {donts.map((d) => (
+          <li>
+            <div class:list={['u-stage', `x-${d.k}`]}>
+              <img src="/brand/logo-mark.svg" alt="" width="72" height="72" />
+              {d.k === 'moon' && <span class="moon-off" aria-hidden="true"></span>}
+            </div>
+            <p class="u-cap"><span class="u-k no">Don’t</span><span>{d.t.replace(/^Don’t /, '')}</span></p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section paper" id="downloads" aria-labelledby="dl-title">
+    <div class="container">
+      <div class="head">
+        <h2 id="dl-title">The asset kit</h2>
+        <p>Every file below is served from this site. Regenerate the vectors with <code>python3 brand/make_brand.py</code> (see the website README).</p>
+      </div>
+      <ul class="dl">
+        {downloads.map((d) => (
+          <li>
+            <a href={`/${d.file}`} download class="dl-row strip-link">
+              <span class="dl-kind">{d.kind}</span>
+              <span class="dl-name"><strong>{d.name}</strong><span class="datum">{d.file.split('/').pop()}</span></span>
+              <span class="dl-size datum">{d.size}</span>
+              <span class="dl-go cap">Download</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+      <p class="dl-note">The Caliban name and logo are part of the proprietary website and product, © 2026 Elie Sfeir. Please don’t alter them or imply an endorsement.</p>
+    </div>
+  </section>
+
+  <Close />
+</Base>
+
+<script>
+  const status = document.querySelector<HTMLElement>('[data-copy-status]');
+  document.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const hex = b.dataset.copy!;
+      try {
+        await navigator.clipboard.writeText(hex);
+        b.classList.add('copied');
+        if (status) status.textContent = `${hex} copied`;
+        setTimeout(() => b.classList.remove('copied'), 1200);
+      } catch {
+        if (status) status.textContent = `Copy failed; the value is ${hex}`;
+      }
+    });
+  });
+
+  const demo = document.querySelector<HTMLFormElement>('[data-demo-keys]');
+  const demoData = document.querySelector<HTMLScriptElement>('[data-demo-shapes]');
+  if (demo && demoData) {
+    const shapes = JSON.parse(demoData.textContent || '[]') as Record<string, string>[];
+    demo.addEventListener('change', () => {
+      const id = new FormData(demo).get('demo-shape');
+      const s = shapes.find((x) => x.id === id);
+      if (!s) return;
+      demo.querySelectorAll<HTMLElement>('[data-k]').forEach((el) => { el.textContent = s[el.dataset.k!] ?? ''; });
+    });
+  }
+</script>
+<style>
+  .b-scope { position: relative; margin: 0; display: grid; place-items: center; aspect-ratio: 1; max-width: 420px; margin-inline: auto; width: 100%; }
+  .b-scope svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .b-scope img { position: relative; width: 38%; height: auto; }
+  .rg { fill: none; stroke: var(--ring); stroke-width: 1; }
+  .ax { stroke: var(--scope-line-2); stroke-width: 1; }
+  .tk { stroke: var(--scope-line-2); stroke-width: 1; }
+  .tl { font-family: var(--mono); font-size: 9px; fill: var(--readout-3); }
+
+  .name-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: stretch; }
+  .nm { display: grid; grid-template-columns: 84px minmax(0, 1fr); border: 1px solid var(--rule); background: var(--strip); }
+  .nm.moon { background: var(--scope-2); border-color: var(--scope-line-2); }
+  .nm-code { background: var(--blue); color: #fff; padding: 14px; }
+  .nm-tag { font-family: var(--display); font-weight: 700; font-size: 1.9rem; letter-spacing: 0.04em; line-height: 1; }
+  .nm-body { padding: 26px 28px 28px; border-left: 1px solid var(--rule); min-width: 0; }
+  .moon .nm-body { border-color: var(--scope-line); }
+  .nm h3 { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; font-size: 1.6rem; line-height: 1.05; }
+  .nm-src { margin-top: 8px; color: var(--ink-3); font-size: 0.92rem; }
+  .moon .nm-src { color: var(--readout-3); }
+  .nm-body > p:last-child { margin-top: 18px; color: var(--ink-2); line-height: 1.7; }
+  .moon .nm-body > p:last-child { color: var(--readout-2); }
+  blockquote { margin: 22px 0 0; padding: 18px 0; border-top: 1px solid var(--rule-2); border-bottom: 1px solid var(--rule); }
+  blockquote p { font-style: italic; font-size: clamp(1.35rem, 2.4vw, 1.8rem); line-height: 1.25; color: var(--ink); text-wrap: balance; }
+  blockquote footer { margin-top: 10px; font-size: 0.9rem; color: var(--ink-3); }
+  blockquote cite { font-style: normal; }
+  .orbit-art { display: block; width: 100%; height: auto; margin-top: 18px; border-top: 1px solid var(--scope-line); border-bottom: 1px solid var(--scope-line); padding-block: 8px; }
+  .orb { fill: none; stroke: var(--target); stroke-opacity: 0.6; stroke-width: 1; stroke-dasharray: 4 5; }
+  .uranus { fill: var(--scope-3); stroke: var(--target); stroke-width: 1; }
+  .ring-u { fill: none; stroke: var(--readout-2); stroke-width: 1; }
+  .dir { fill: none; stroke: var(--target); stroke-width: 1.5; }
+  .dir-head { fill: var(--target); }
+  .cal { fill: var(--readout); }
+  .lbl { fill: var(--readout-2); font-size: 12px; font-family: var(--display); font-weight: 700; letter-spacing: 0.08em; }
+  .lbl.small { font-size: 11px; fill: var(--target); }
+
+  .mark-split { align-items: center; }
+  .mark-head { margin-bottom: 28px; }
+  .meaning, .families { list-style: none; margin: 0; padding: 0; }
+  .meaning .strip { --cols: 72px minmax(0, 1fr); }
+  .meaning .code-cell { justify-content: flex-start; }
+  .meaning .strip p { margin-top: 6px; }
+  .mark-art svg { display: block; width: 100%; height: auto; }
+  .guide { fill: none; stroke: var(--ring); stroke-dasharray: 3 6; }
+  .call { stroke: var(--target); stroke-opacity: 0.6; stroke-width: 1; }
+  .dot { fill: var(--target); }
+  .mcell { fill: var(--blue); }
+  .mnum { fill: #fff; font-family: var(--mono); font-size: 10px; font-weight: 600; }
+  .ml { fill: var(--readout); font-size: 15px; font-weight: 700; font-family: var(--display); letter-spacing: 0.08em; text-transform: uppercase; }
+
+  .variants { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+  .variant { background: var(--strip); }
+  .v-stage { height: 180px; display: grid; place-items: center; padding: 24px; }
+  .v-stage img { max-width: 100%; height: auto; }
+  .v-stage.light { background-color: #fff; background-image: linear-gradient(var(--strip-2) 1px, transparent 1px), linear-gradient(90deg, var(--strip-2) 1px, transparent 1px); background-size: 24px 24px; background-position: -1px -1px; }
+  .v-stage.dark { background: var(--scope-1); }
+  .v-stage.ice { background: var(--strip-2); }
+  .v-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--rule); }
+  .v-meta h3 { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; font-size: 1.1rem; }
+  .v-meta p { color: var(--ink-3); font-size: 0.86rem; margin-top: 2px; line-height: 1.4; }
+
+  .pal + .pal { margin-top: 40px; }
+  .pal-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; margin-bottom: 12px; }
+  .pal-head p { color: var(--ink-3); font-size: 0.95rem; }
+  .swatches { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); border-top: 1px solid var(--rule); border-left: 1px solid var(--rule); }
+  @media (max-width: 1080px) { .swatches { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); } }
+  .swatches li { background: var(--strip); border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+  .swatch { width: 100%; height: 100%; padding: 0; border: 0; background: var(--strip); text-align: left; cursor: pointer; display: grid; grid-template-rows: auto 1fr; transition: background-color .18s var(--ease-out); }
+  .swatch:hover { background: #fff; }
+  .swatch:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+  .sw-chip { position: relative; display: grid; place-items: center; height: 84px; border-bottom: 1px solid var(--rule); }
+  .sw-copied { opacity: 0; padding: 3px 8px; background: var(--strip); color: var(--ink); transition: opacity .15s var(--ease-out); }
+  .swatch.copied .sw-copied { opacity: 1; }
+  .sw-meta { display: grid; gap: 2px; align-content: start; padding: 10px 12px 14px; }
+  .sw-meta strong { font-size: 0.94rem; font-weight: 600; color: var(--ink); }
+  .sw-hex { color: var(--ink); }
+  .sw-token { color: var(--blue-deep); font-size: 0.72rem; }
+  .sw-use { font-size: 0.84rem; color: var(--ink-3); line-height: 1.4; margin-top: 4px; }
+
+  .families .strip { --cols: 72px minmax(0, 0.7fr) minmax(0, 1.3fr); }
+  .fam-meta { margin: 0; display: grid; gap: 6px; align-content: start; padding: 18px; }
+  .fam-meta dd { margin: 0; }
+  .fam-w { color: var(--blue-deep); }
+  .fam-use { color: var(--ink-2); font-size: 0.95rem; line-height: 1.5; }
+  .fam-sample { padding: 18px 22px; display: grid; gap: 14px; background: #fff; }
+  .fam-big { color: var(--ink) !important; }
+  .f-display { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; }
+  .fam-big.f-display { font-size: clamp(1.7rem, 2.8vw, 2.5rem); line-height: 1.04; }
+  .f-body { font-family: var(--sans); }
+  .fam-big.f-body { font-size: 1.25rem; line-height: 1.45; }
+  .f-mono { font-family: var(--mono); }
+  .fam-big.f-mono { font-size: 0.95rem; overflow-wrap: anywhere; }
+  .fam-chars { color: var(--ink-3) !important; font-size: 0.9rem !important; line-height: 1.6 !important; overflow-wrap: anywhere; border-top: 1px solid var(--rule); padding-top: 12px; }
+  .fam-chars.f-mono { font-size: 0.78rem !important; }
+  .f-scope { font-family: var(--scope-mono); }
+  .fam-big.f-scope { font-size: 0.95rem; overflow-wrap: anywhere; }
+  .fam-chars.f-scope { font-size: 0.78rem !important; }
+
+  .comp-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: 0; border: 1px solid var(--rule); }
+  .comp-col { padding: 28px; min-width: 0; }
+  .comp-col:not(.scope) { background: var(--strip); }
+  .comp-scope { border-left: 1px solid var(--rule); }
+  .comp-h { color: var(--ink-3); }
+  .comp-scope .comp-h { color: var(--readout-3); }
+  .comp-h:not(:first-child) { margin-top: 36px; }
+  .comp-d { margin: 6px 0 14px; color: var(--ink-2); font-size: 0.95rem; }
+  .comp-scope .comp-d { color: var(--readout-2); }
+  .demo-strip { --cols: 80px minmax(0, 1fr) auto; background: #fff; }
+  .demo-strip b { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; font-size: 1.15rem; }
+  .demo-sub { color: var(--ink-2); font-size: 0.92rem; }
+  .demo-strip .datum { color: var(--ink-3); align-self: center; white-space: nowrap; }
+  .head-demo { margin: 0; padding: 18px; background: #fff; border: 1px solid var(--rule); gap: 12px 24px; }
+  .head-demo .hd-h { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; line-height: 1.04; font-size: 1.9rem; color: var(--ink); }
+  .head-demo p:not(.hd-h) { font-size: 0.95rem; }
+  .demo-readouts { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, auto)); justify-content: start; border-top: 1px solid var(--scope-line-2); border-bottom: 1px solid var(--scope-line-2); }
+  .demo-readouts .readout { display: flex; flex-direction: column-reverse; gap: 8px; padding: 14px 22px 14px 0; }
+  .demo-readouts .readout + .readout { padding-left: 22px; border-left: 1px solid var(--scope-line); }
+  .demo-readouts dt, .demo-readouts dd { margin: 0; }
+  .comp-scope .readout b { color: var(--readout); }
+  .comp-scope .readout span { color: var(--readout-3); }
+  .demo-keys fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+  .keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--scope-line-2); border: 1px solid var(--scope-line-2); }
+  .key { position: relative; display: block; cursor: pointer; }
+  .key input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .key span { display: block; height: 100%; padding: 12px 14px; background: var(--scope-2); font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; font-size: 1rem; color: var(--readout); transition: background-color .18s var(--ease-out); }
+  .key:hover span { background: var(--scope-3); }
+  .key input:checked + span { background: var(--blue); color: #fff; }
+  .key input:focus-visible + span { outline: 2px solid var(--target); outline-offset: -4px; }
+  .demo-ledger { margin-top: 16px; --dt: 120px; }
+  .rules-wrap { margin-top: 40px; }
+  .rules { margin-top: 12px; --dt: 140px; }
+
+  .usage { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+  .usage > li { background: var(--strip); }
+  .usage.dos { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .usage.donts { grid-template-columns: repeat(6, minmax(0, 1fr)); margin-top: 12px; }
+  .u-stage { position: relative; height: 140px; display: grid; place-items: center; background: #fff; border-bottom: 1px solid var(--rule); overflow: hidden; }
+  .u-stage.dark { background: var(--scope-1); }
+  .u-stage.space img { position: relative; z-index: 1; }
+  .space-box { position: absolute; width: 214px; height: 90px; border: 1px dashed var(--blue); background: rgba(29, 78, 216, 0.06); }
+  .u-cap { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start; padding: 12px 14px 14px; font-size: 0.88rem; line-height: 1.5; color: var(--ink-2); }
+  .u-k { font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.74rem; padding: 2px 7px; white-space: nowrap; }
+  .u-k.do { background: var(--blue); color: #fff; }
+  .u-k.no { background: var(--amber); color: var(--scope-1); }
+  .donts .u-stage { height: 120px; }
+  .donts .u-stage::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top right, transparent calc(50% - 1px), var(--amber), transparent calc(50% + 1px)); }
+  .x-recolour img { filter: hue-rotate(150deg) saturate(1.6); }
+  .x-stretch img { transform: scaleX(1.6); }
+  .x-rotate img { transform: rotate(90deg); }
+  .x-contrast { background: repeating-linear-gradient(45deg, var(--scope-2) 0 10px, var(--scope-3) 10px 20px) !important; }
+  .x-effects img { filter: drop-shadow(4px 6px 0 #F2B544) drop-shadow(0 0 8px #F2B544); }
+  .x-moon img { clip-path: inset(0 22% 0 0); }
+  .moon-off { position: absolute; width: 11px; height: 11px; border-radius: 50%; background: #6CB8FF; top: 26px; right: 30px; }
+
+  .dl { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+  .dl-row { display: grid; grid-template-columns: 64px minmax(0, 1fr) 84px auto; align-items: stretch; background: var(--strip); border: 1px solid var(--rule); color: var(--ink); height: 100%; }
+  .dl-row > span { padding: 12px 14px; min-width: 0; }
+  .dl-row > span + span { border-left: 1px solid var(--rule); }
+  .dl-kind { background: var(--blue); color: #fff; font-family: var(--mono); font-weight: 600; font-size: 0.74rem; }
+  .dl-name { display: grid; gap: 2px; }
+  .dl-name strong { font-size: 0.95rem; font-weight: 600; }
+  .dl-name .datum { color: var(--ink-3); font-size: 0.72rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dl-size { color: var(--ink); display: flex; align-items: center; white-space: nowrap; }
+  .dl-go { color: var(--blue); display: flex; align-items: center; }
+  .dl-row:hover .dl-name strong { color: var(--blue); }
+  .dl-note { margin-top: 18px; color: var(--ink-3); font-size: 0.88rem; }
+
+  @media (max-width: 1080px) {
+    .name-grid, .comp-grid { grid-template-columns: minmax(0, 1fr); }
+    .comp-scope { border-left: 0; border-top: 1px solid var(--rule); }
+    .variants { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .usage.donts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .families .strip { --cols: 64px minmax(0, 1fr); }
+    .fam-sample { grid-column: 2; border-left: 1px solid var(--rule); border-top: 1px solid var(--rule); }
+    .families .code-cell { grid-row: 1 / 3; }
+  }
+  @media (max-width: 760px) {
+    .nm { grid-template-columns: minmax(0, 1fr); }
+    .nm-code { padding: 10px 16px; }
+    .nm-tag { font-size: 1.4rem; }
+    .nm-body { border-left: 0; padding: 20px; }
+    .variants, .usage.dos, .dl { grid-template-columns: minmax(0, 1fr); }
+    .usage.donts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .swatches { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .comp-col { padding: 18px; }
+    .demo-strip { --cols: 64px minmax(0, 1fr); }
+    .demo-strip .datum { grid-column: 2; border-left: 1px solid var(--rule); border-top: 1px solid var(--rule); }
+    .demo-strip .code-cell { grid-row: 1 / 3; }
+    .demo-readouts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .demo-readouts .readout { padding-right: 10px; }
+    .demo-readouts .readout + .readout { padding-left: 10px; }
+    .demo-readouts b { font-size: 1.5rem; }
+    .keys { grid-template-columns: minmax(0, 1fr); }
+    .dl-row { grid-template-columns: 56px minmax(0, 1fr) 76px; }
+    .dl-go { display: none !important; }
+    .families .strip { --cols: 52px minmax(0, 1fr); }
+  }
+</style>

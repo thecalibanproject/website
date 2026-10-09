@@ -1,0 +1,202 @@
+---
+// Renders a Markdown doc from ../docs: a compact scope header (crumbs, then the title set as a flight
+// strip: a filled blue code cell at the left, the title and a ruled meta line in the body cell; the code
+// never sits above the title), then strip paper with a sticky table of contents and a 70ch measure.
+interface Heading { depth: number; slug: string; text: string; }
+interface Link { label: string; href: string }
+interface Props {
+  title: string;
+  /** Short id for the code cell, e.g. a research note number. */
+  code: string;
+  /** What the strip is, printed at the foot of the code cell, e.g. NOTE or DOC. */
+  kind?: string;
+  html: string;
+  headings: Heading[];
+  /** Header facts, each a caps key over a value. */
+  meta?: { k: string; v: string; mono?: boolean }[];
+  source: string;
+  crumbs: { label: string; href?: string }[];
+  related?: Link[];
+  prev?: Link & { code?: string };
+  next?: Link & { code?: string };
+}
+const { title, code, kind, html, headings, meta = [], source, crumbs, related = [], prev, next } = Astro.props;
+const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
+---
+<article class="doc">
+  <header class="doc-hero scope">
+    <div class="container">
+      <nav aria-label="Breadcrumb">
+        <ol class="crumbs">
+          <li><a href="/">Home</a></li>
+          {crumbs.map((c) => <li>{c.href ? <a href={c.href}>{c.label}</a> : <span aria-current="page">{c.label}</span>}</li>)}
+        </ol>
+      </nav>
+      <div class="doc-id">
+        <span class="doc-code" aria-hidden="true"><span>{code}</span>{kind && <span class="doc-kind">{kind}</span>}</span>
+        <div class="doc-titleblock">
+          <h1>{title}</h1>
+          {meta.length > 0 && (
+            <dl class="doc-meta">
+              {meta.map((m) => <div><dt class="cap">{m.k}</dt><dd class:list={{ datum: m.mono }}>{m.v}</dd></div>)}
+            </dl>
+          )}
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="paper">
+    <div class="container doc-grid">
+      <aside class="doc-aside" aria-label="On this page">
+        <details class="toc" open>
+          <summary><span class="cap">On this page</span><span class="toc-i" aria-hidden="true"></span></summary>
+          <nav>
+            <ol>
+              {toc.map((h) => <li class={`d${h.depth}`}><a href={`#${h.slug}`}>{h.text}</a></li>)}
+            </ol>
+          </nav>
+        </details>
+      </aside>
+
+      <div class="doc-main">
+        <div class="prose" set:html={html} />
+        {related.length > 0 && (
+          <nav class="doc-related" aria-label="Related">
+            <p class="cap">Related</p>
+            <ul>{related.map((r) => <li><a href={r.href} class="link-arrow">{r.label}</a></li>)}</ul>
+          </nav>
+        )}
+        <p class="doc-source"><span class="ds-k">SRC</span><span>Rendered from <code>{source}</code> in the Caliban docs repo. Research figures are published third-party results; latency figures marked “target” are estimates, not measurements.</span></p>
+        {(prev || next) && (
+          <nav class="doc-pager" aria-label="More notes">
+            {prev ? <a href={prev.href} class="pager strip-link"><span class="pg-code">{prev.code ?? 'PREV'}</span><span class="pg-text"><span class="cap">Previous</span>{prev.label}</span></a> : <span></span>}
+            {next ? <a href={next.href} class="pager strip-link next"><span class="pg-text"><span class="cap">Next</span>{next.label}</span><span class="pg-code">{next.code ?? 'NEXT'}</span></a> : <span></span>}
+          </nav>
+        )}
+      </div>
+    </div>
+  </div>
+</article>
+
+<script>
+  // Close the TOC by default on small screens; mark the current section.
+  const toc = document.querySelector<HTMLDetailsElement>('.toc');
+  if (toc && window.matchMedia('(max-width: 1080px)').matches) toc.open = false;
+  const links = [...document.querySelectorAll<HTMLAnchorElement>('.toc a')];
+  const targets = links.map((a) => document.getElementById(decodeURIComponent(a.hash.slice(1)))).filter(Boolean) as HTMLElement[];
+  if ('IntersectionObserver' in window && targets.length) {
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        links.forEach((a) => {
+          const on = decodeURIComponent(a.hash.slice(1)) === e.target.id;
+          a.classList.toggle('current', on);
+          if (on) a.setAttribute('aria-current', 'location'); else a.removeAttribute('aria-current');
+        });
+      }
+    }, { rootMargin: '-80px 0px -70% 0px' });
+    targets.forEach((t) => io.observe(t));
+  }
+</script>
+
+<style>
+  .doc-hero { padding: 48px 0 40px; border-bottom: 1px solid var(--scope-line-2);
+    background:
+      linear-gradient(var(--scope-line) 1px, transparent 1px) -1px -1px / 96px 96px,
+      linear-gradient(90deg, var(--scope-line) 1px, transparent 1px) -1px -1px / 96px 96px,
+      var(--scope-1); }
+  .doc-id { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: stretch; max-width: 1120px; background: var(--scope-2); border: 1px solid var(--scope-line-2); }
+  .doc-code { display: flex; flex-direction: column; justify-content: space-between; gap: 12px; background: var(--blue); color: #fff; font-family: var(--mono); font-weight: 700; font-size: 1.05rem; line-height: 1; padding: 16px 14px; font-variant-numeric: slashed-zero; }
+  .doc-kind { font-size: 0.68rem; font-weight: 400; letter-spacing: 0.04em; opacity: 0.85; }
+  .doc-titleblock { min-width: 0; padding: 22px 26px 0; border-left: 1px solid var(--scope-line-2); }
+  .doc-id h1 { font-size: clamp(1.9rem, 3.5vw, 3rem); }
+  .doc-meta { margin: 22px -26px 0; padding: 0 26px; display: flex; flex-wrap: wrap; border-top: 1px solid var(--scope-line); }
+  .doc-meta > div { display: grid; gap: 4px; padding: 10px 22px 12px 0; margin-right: 22px; border-right: 1px solid var(--scope-line); }
+  .doc-meta > div:last-child { border-right: 0; margin-right: 0; }
+  .doc-meta dt { color: var(--readout-3); font-size: 0.72rem; }
+  .doc-meta dd { margin: 0; color: var(--readout); font-size: 0.95rem; }
+  .doc-meta dd.datum { font-size: 0.82rem; line-height: 1.7; }
+
+  .doc-grid { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 64px; padding-block: 56px 112px; }
+  .doc-aside { position: sticky; top: calc(var(--nav-h) + 24px); align-self: start; max-height: calc(100vh - var(--nav-h) - 48px); overflow-y: auto; scrollbar-width: thin; }
+  .toc summary { list-style: none; display: flex; align-items: center; justify-content: space-between; padding: 0 0 10px; cursor: pointer; color: var(--ink-3); }
+  .toc summary::-webkit-details-marker { display: none; }
+  .toc-i { position: relative; width: 12px; height: 12px; display: none; }
+  .toc-i::before, .toc-i::after { content: ''; position: absolute; left: 0; top: 5px; width: 12px; height: 2px; background: var(--ink); transition: transform .2s var(--ease-out); }
+  .toc-i::after { transform: rotate(90deg); }
+  .toc[open] .toc-i::after { transform: rotate(0deg); }
+  .toc ol { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule-2); }
+  .toc li { border-bottom: 1px solid var(--rule); }
+  .toc li a { display: block; padding: 7px 10px; font-size: 0.88rem; line-height: 1.35; color: var(--ink-2); text-decoration: none; }
+  .toc li.d3 a { padding-left: 24px; font-size: 0.84rem; color: var(--ink-3); }
+  .toc li a:hover { color: var(--blue); background: var(--strip); }
+  .toc li a.current { background: var(--blue); color: #fff; }
+  .doc-main { min-width: 0; }
+  .prose :global(> *) { max-width: 72ch; }
+  .prose :global(> .table-wrap), .prose :global(> pre) { max-width: none; }
+  .doc-related { margin-top: 56px; max-width: 72ch; }
+  .doc-related .cap { color: var(--ink-3); padding-bottom: 10px; }
+  .doc-related ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule-2); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; }
+  .doc-related li { border-bottom: 1px solid var(--rule); }
+  .doc-related a { display: flex; padding: 10px 0; font-size: 0.95rem; }
+  .doc-source { display: grid; grid-template-columns: auto minmax(0, 1fr); margin-top: 32px; max-width: 72ch; background: var(--strip); border: 1px solid var(--rule); font-size: 0.86rem; color: var(--ink-3); line-height: 1.55; }
+  .doc-source > span { padding: 12px 14px; min-width: 0; }
+  .ds-k { background: var(--blue); color: #fff; font-family: var(--mono); font-weight: 600; font-size: 0.74rem; }
+  .doc-pager { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; max-width: 72ch; }
+  .pager { display: grid; grid-template-columns: 64px minmax(0, 1fr); background: var(--strip); border: 1px solid var(--rule); color: var(--ink); }
+  .pager.next { grid-template-columns: minmax(0, 1fr) 64px; text-align: right; }
+  .pg-code { background: var(--blue); color: #fff; font-family: var(--mono); font-weight: 600; font-size: 0.78rem; display: grid; place-items: center; }
+  .pg-text { display: grid; gap: 4px; padding: 12px 16px; font-weight: 600; font-size: 0.95rem; line-height: 1.35; }
+  .pg-text .cap { color: var(--ink-3); font-size: 0.74rem; }
+  .pager:hover .pg-text { color: var(--blue); }
+
+  /* Prose */
+  .prose { font-size: 1.04rem; line-height: 1.75; color: var(--ink-2); }
+  .prose :global(> *:first-child) { margin-top: 0; }
+  .prose :global(h2) { font-size: clamp(1.5rem, 2.5vw, 1.95rem); line-height: 1.1; margin: 64px 0 18px; padding-top: 18px; border-top: 1px solid var(--rule-2); color: var(--ink); }
+  .prose :global(h3) { font-size: 1.2rem; font-weight: 600; margin: 36px 0 12px; color: var(--ink); }
+  .prose :global(h4) { font-size: 1rem; font-weight: 600; margin: 28px 0 8px; }
+  .prose :global(p), .prose :global(ul), .prose :global(ol) { margin: 0 0 16px; }
+  .prose :global(ul), .prose :global(ol) { padding-left: 1.3em; }
+  .prose :global(ul) { list-style: square; }
+  .prose :global(li) { margin: 6px 0; }
+  .prose :global(li::marker) { color: var(--blue); }
+  .prose :global(li > ul), .prose :global(li > ol) { margin: 6px 0 0; }
+  .prose :global(strong) { color: var(--ink); font-weight: 600; }
+  .prose :global(hr) { border: 0; height: 1px; background: var(--rule); margin: 48px 0; }
+  .prose :global(hr + h2) { border-top: 0; padding-top: 0; margin-top: 56px; }
+  .prose :global(a) { overflow-wrap: anywhere; }
+  .prose :global(blockquote) { margin: 24px 0; padding: 14px 20px; border: 1px solid var(--rule); border-left-color: var(--blue); background: var(--strip); color: var(--ink-2); }
+  .prose :global(blockquote > :last-child) { margin-bottom: 0; }
+  .prose :global(pre) { margin: 20px 0 24px; padding: 18px 20px; font-size: 0.8rem; line-height: 1.65; border: 1px solid var(--scope-line-2); background: var(--scope-1) !important; }
+  .prose :global(pre code) { background: none; color: inherit; padding: 0; font-size: inherit; }
+  .prose :global(> p:first-of-type em:only-child) { color: var(--ink-3); }
+  .prose :global(.table-wrap) { margin: 20px 0 28px; }
+  .prose :global(.table-wrap td) { min-width: 120px; }
+  .prose :global(.table-wrap td:first-child) { min-width: 140px; }
+  .prose :global(.table-wrap table) { min-width: 720px; }
+  .prose :global(input[type='checkbox']) { margin-right: 6px; accent-color: var(--blue); }
+
+  @media (max-width: 1080px) {
+    .doc-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; padding-top: 24px; }
+    .doc-aside { position: static; max-height: none; overflow: visible; border: 1px solid var(--rule); background: var(--strip); padding: 12px 14px; }
+    .toc summary { padding: 0; }
+    .toc[open] summary { padding-bottom: 10px; }
+    .toc-i { display: inline-block; }
+  }
+  @media (max-width: 640px) {
+    .doc-hero { padding: 32px 0 28px; }
+    .doc-id { grid-template-columns: 56px minmax(0, 1fr); }
+    .doc-code { padding: 12px 10px; font-size: 0.86rem; }
+    .doc-kind { font-size: 0.6rem; }
+    .doc-titleblock { padding: 16px 16px 0; }
+    .doc-meta { margin: 16px -16px 0; padding: 0 16px; }
+    .prose { font-size: 0.98rem; }
+    .prose :global(h2) { margin-top: 48px; }
+    .prose :global(pre) { font-size: 0.72rem; padding: 14px; }
+    .doc-pager, .doc-related ul { grid-template-columns: minmax(0, 1fr); }
+    .doc-meta > div { padding-right: 14px; margin-right: 14px; }
+    .doc-pager > span:empty { display: none; }
+  }
+</style>

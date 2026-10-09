@@ -1,0 +1,81 @@
+---
+import { STAGES } from '../../data/stages';
+---
+<section class="section paper stages" aria-labelledby="stages-title">
+  <div class="container">
+    <div class="head">
+      <h2 id="stages-title">One request.<br />Seven stages.</h2>
+      <p>The same deterministic path on every call, in the gateway’s real order. Each strip shows the request as it enters a stage and as it leaves it, with snippets taken from the code and its tests.</p>
+    </div>
+
+    <ol class="board">
+      {STAGES.map((s, i) => (
+        <li id={`stage-${s.id}`} class="row anchor-target">
+          <div class="r-code">
+            <span class="r-seq">{String(i + 1).padStart(2, '0')}</span>
+            <span class="r-tag">{s.code}</span>
+          </div>
+          <div class="r-what">
+            <h3><span class="r-name">{s.name}</span> {s.claim}</h3>
+            <p>{s.body}</p>
+            <p class:list={['r-status', s.status]}>{s.statusNote}</p>
+            <p class="r-foot">
+              <span class="datum">{s.crates.join(' · ')}</span>
+              <a href={s.link.href} class="link-arrow">{s.link.label}</a>
+            </p>
+          </div>
+          <div class="r-reg">
+            <span class="cap">In</span>
+            <pre>{s.before}</pre>
+          </div>
+          <div class="r-reg out">
+            <span class="cap">Out</span>
+            <pre>{s.after}</pre>
+          </div>
+        </li>
+      ))}
+    </ol>
+  </div>
+</section>
+
+<style>
+  .board { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .row { display: grid; grid-template-columns: 96px minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr); background: var(--strip); border: 1px solid var(--rule); }
+  .row > * { min-width: 0; }
+  .row > * + * { border-left: 1px solid var(--rule); }
+  .r-code { background: var(--blue); color: #fff; display: flex; flex-direction: column; justify-content: space-between; padding: 14px 14px 16px; }
+  .r-seq { font-family: var(--mono); font-stretch: 87.5%; font-size: 0.75rem; opacity: 0.8; }
+  .r-tag { font-family: var(--display); font-weight: 700; font-size: 2rem; letter-spacing: 0.04em; line-height: 1; }
+  .r-what { padding: 20px 22px; display: grid; gap: 10px; align-content: start; }
+  .r-what h3 { font-size: 1.12rem; line-height: 1.3; }
+  .r-name { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; font-size: 1.3rem; color: var(--blue); margin-right: 6px; }
+  .r-what p { color: var(--ink-2); font-size: 0.98rem; line-height: 1.6; }
+  .r-status { font-size: 0.88rem !important; color: var(--ink-3) !important; padding-left: 14px; position: relative; }
+  .r-status::before { content: ''; position: absolute; left: 0; top: 0.55em; width: 7px; height: 7px; background: var(--success); }
+  .r-status.partial::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+  .r-foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; margin-top: 2px; }
+  .r-foot .datum { color: var(--ink-3); font-size: 0.72rem; }
+  .r-reg { padding: 16px 18px 18px; display: grid; gap: 10px; align-content: start; background: var(--strip); }
+  .r-reg.out { background: #fff; }
+  .r-reg .cap { color: var(--ink-3); }
+  .r-reg pre { font-size: 0.72rem; line-height: 1.7; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .r-reg.out pre { color: var(--blue-deep); }
+
+  @media (max-width: 1180px) {
+    .row { grid-template-columns: 84px minmax(0, 1fr) minmax(0, 1fr); }
+    .r-what { grid-column: 2 / 4; }
+    .r-reg { grid-row: 2; border-top: 1px solid var(--rule); }
+    .r-reg:not(.out) { grid-column: 2; }
+    .r-reg.out { grid-column: 3; }
+    .r-code { grid-row: 1 / 3; }
+  }
+  @media (max-width: 720px) {
+    .row { grid-template-columns: minmax(0, 1fr); }
+    .r-code { grid-row: auto; flex-direction: row; align-items: baseline; justify-content: flex-start; gap: 12px; padding: 10px 16px; }
+    .r-code .r-tag { font-size: 1.4rem; }
+    .r-what, .r-reg:not(.out), .r-reg.out { grid-column: 1; grid-row: auto; border-left: 0; }
+    .r-reg { border-top: 1px solid var(--rule); }
+    .r-what { padding: 18px 16px; }
+    .r-name { display: none; }
+  }
+</style>

@@ -1,0 +1,73 @@
+---
+// Tabbed code samples on the scope surface. Tabs are square keys, the selected key filled blue
+// (the same tab style as the home page's Developers section). One tab renders as a captioned file head.
+import { Code } from 'astro:components';
+import { calibanScope } from '../lib/shiki-theme';
+
+interface Tab { label: string; code: string; lang?: string; file?: string }
+interface Props { tabs: Tab[]; id: string; caption?: string; maxHeight?: number }
+const { tabs, id, caption, maxHeight } = Astro.props;
+const single = tabs.length === 1;
+---
+<figure class="code ctabs" data-ctabs>
+  {single ? (
+    <div class="ct-head"><span class="ct-name">{tabs[0].label}</span></div>
+  ) : (
+    <div class="ct-list" role="tablist" aria-label={caption ?? 'Code samples'}>
+      {tabs.map((t, i) => (
+        <button type="button" role="tab" id={`${id}-tab-${i}`} aria-controls={`${id}-panel-${i}`} aria-selected={i === 0 ? 'true' : 'false'} tabindex={i === 0 ? 0 : -1}>{t.label}</button>
+      ))}
+    </div>
+  )}
+  {tabs.map((t, i) => (
+    <div class="ct-panel" role={single ? 'region' : 'tabpanel'} id={`${id}-panel-${i}`} aria-labelledby={single ? undefined : `${id}-tab-${i}`} aria-label={single ? t.label : undefined} hidden={i !== 0} tabindex="0" style={maxHeight ? `max-height:${maxHeight}px` : undefined}>
+      {t.file && <p class="ct-file">{t.file}</p>}
+      <Code code={t.code} lang={(t.lang ?? 'plaintext') as any} theme={calibanScope as any} />
+    </div>
+  ))}
+  {caption && <figcaption class="ct-cap">{caption}</figcaption>}
+</figure>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-ctabs]').forEach((root) => {
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    const select = (tab: HTMLButtonElement, focus = false) => {
+      tabs.forEach((t) => {
+        const on = t === tab;
+        t.setAttribute('aria-selected', String(on));
+        t.tabIndex = on ? 0 : -1;
+        const panel = root.querySelector<HTMLElement>(`#${t.getAttribute('aria-controls')}`);
+        if (panel) panel.hidden = !on;
+      });
+      if (focus) tab.focus();
+    };
+    tabs.forEach((t, i) => {
+      t.addEventListener('click', () => select(t));
+      t.addEventListener('keydown', (e) => {
+        let n = -1;
+        if (e.key === 'ArrowRight') n = (i + 1) % tabs.length;
+        if (e.key === 'ArrowLeft') n = (i - 1 + tabs.length) % tabs.length;
+        if (e.key === 'Home') n = 0;
+        if (e.key === 'End') n = tabs.length - 1;
+        if (n >= 0) { e.preventDefault(); select(tabs[n], true); }
+      });
+    });
+  });
+</script>
+
+<style>
+  .ctabs { margin: 0; min-width: 0; }
+  .ct-list { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--scope-line-2); background: var(--scope-1); }
+  .ct-list button { flex: none; background: transparent; border: 0; border-right: 1px solid var(--scope-line); color: var(--readout-2); padding: 11px 16px; font-family: var(--display); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.9rem; line-height: 1.1; cursor: pointer; transition: background-color .18s var(--ease-out), color .18s var(--ease-out); }
+  .ct-list button:hover { color: #fff; }
+  .ct-list button[aria-selected='true'] { background: var(--blue); color: #fff; }
+  .ct-list button:focus-visible { outline: 2px solid var(--target); outline-offset: -3px; }
+  .ct-head { display: flex; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--scope-line-2); }
+  .ct-name { font-family: var(--display); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.9rem; color: var(--readout-2); }
+  .ct-panel { overflow: auto; }
+  .ct-panel:focus-visible { outline: 2px solid var(--target); outline-offset: -2px; }
+  .ct-panel :global(pre) { padding: 16px 18px; background: transparent !important; font-size: inherit; line-height: inherit; }
+  .ct-file { padding: 12px 18px 0; font-family: var(--mono); font-size: 0.72rem; color: var(--target); }
+  .ct-cap { padding: 10px 16px; border-top: 1px solid var(--scope-line); color: var(--readout-3); font-family: var(--sans); font-size: 0.84rem; line-height: 1.5; }
+  .ct-cap :global(code) { font-size: 0.86em; }
+</style>

@@ -1,0 +1,103 @@
+---
+// Scope instrument for the nodes page: the invoice-triage@v7 node as a typed graph
+// (plan → lookup ∥ risk → check → approve), its budget as a ruled meter with a fixed-place readout,
+// and what exists in core today. Square boxes, blue edges; the human approval is a hold, so it is amber.
+const nodes = [
+  { id: 'plan', type: 'llm', x: 16, y: 86 },
+  { id: 'lookup', type: 'tool', x: 150, y: 26 },
+  { id: 'risk', type: 'subnode', x: 150, y: 146 },
+  { id: 'check', type: 'verify', x: 284, y: 86 },
+  { id: 'approve', type: 'human', x: 418, y: 86 },
+];
+const W = 104, H = 46;
+const c = (id: string) => nodes.find((n) => n.id === id)!;
+// Orthogonal edges: out of the right side, across, into the left side.
+const edge = (a: string, b: string) => {
+  const s = c(a), t = c(b);
+  const x1 = s.x + W, y1 = s.y + H / 2, x2 = t.x - 2, y2 = t.y + H / 2, mx = Math.round((x1 + x2) / 2);
+  return y1 === y2 ? `M${x1} ${y1} H ${x2}` : `M${x1} ${y1} H ${mx} V ${y2} H ${x2}`;
+};
+const edges = [['plan', 'lookup'], ['plan', 'risk'], ['lookup', 'check'], ['risk', 'check'], ['check', 'approve']];
+const steps = { used: 7, cap: 20 };
+---
+<figure class="ng" aria-label="A node spec and the typed graph it describes">
+  <div class="ng-head">
+    <span class="ng-k">NOD</span>
+    <span class="ng-id datum">invoice-triage@v7</span>
+    <span class="ng-spec cap">Spec · schema valid</span>
+  </div>
+
+  <div class="ng-graph">
+    <svg viewBox="0 0 540 210" role="img" aria-label="Graph: plan fans out to lookup and vendor-risk in parallel, both feed a verify step, which goes to human approval over 1000 USD">
+      <defs>
+        <marker id="ng-arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 8 4 0 8z" fill="#3E6CF2" /></marker>
+      </defs>
+      {edges.map(([a, b]) => <path d={edge(a, b)} class="ng-edge" marker-end="url(#ng-arr)" />)}
+      <rect x="392" y="60" width="96" height="18" class="ng-cond-bg" />
+      <text x="440" y="73" text-anchor="middle" class="ng-cond">amount &gt; 1000</text>
+      {nodes.map((n) => (
+        <g class:list={['ng-node', n.type]}>
+          <rect x={n.x} y={n.y} width={W} height={H} class="ng-box" />
+          <text x={n.x + 12} y={n.y + 20} class="ng-name">{n.id}</text>
+          <text x={n.x + 12} y={n.y + 36} class="ng-type">{n.type}</text>
+        </g>
+      ))}
+    </svg>
+  </div>
+
+  <div class="ng-budget">
+    <div class="readout">
+      <b>{String(steps.used).padStart(2, '0')}<i>/{steps.cap}</i></b>
+      <span>Steps · budget</span>
+    </div>
+    <div class="ng-meter" aria-hidden="true">
+      {Array.from({ length: steps.cap }, (_, i) => <span class:list={{ on: i < steps.used }}></span>)}
+    </div>
+  </div>
+
+  <dl class="ng-legend">
+    <div><dt class="cap">Exists today</dt><dd>Spec validation and the hierarchical budget ledger.</dd></div>
+    <div><dt class="cap">In progress</dt><dd>The durable graph executor.</dd></div>
+  </dl>
+  <p class="ng-foot">Budget figures in this graph are illustrative.</p>
+</figure>
+
+<style>
+  .ng { margin: 0; display: grid; gap: 16px; }
+  .ng-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: stretch; border: 1px solid var(--scope-line-2); }
+  .ng-head > * { padding: 9px 12px; display: flex; align-items: center; min-width: 0; }
+  .ng-head > * + * { border-left: 1px solid var(--scope-line); }
+  .ng-k { background: var(--blue); color: #fff; font-family: var(--mono); font-weight: 600; font-size: 0.74rem; }
+  .ng-id { color: var(--readout); }
+  .ng-spec { color: var(--readout-3); }
+  .ng-graph { border: 1px solid var(--scope-line); padding: 10px 8px;
+    background: linear-gradient(var(--scope-line) 1px, transparent 1px) -1px -1px / 24px 24px, linear-gradient(90deg, var(--scope-line) 1px, transparent 1px) -1px -1px / 24px 24px, var(--scope-1); }
+  .ng-graph svg { width: 100%; height: auto; display: block; }
+  .ng-edge { fill: none; stroke: #3E6CF2; stroke-width: 1.5; }
+  .ng-box { fill: #0F2448; stroke: rgba(124, 196, 255, 0.3); stroke-width: 1; }
+  .ng-node.llm .ng-box { stroke: #3E6CF2; fill: #102E7A; }
+  .ng-node.human .ng-box { stroke: #F2B544; }
+  .ng-name { font: 600 14px var(--sans); fill: #E8F1FF; }
+  .ng-type { font: 500 10px var(--mono); fill: #7CC4FF; }
+  .ng-node.human .ng-type { fill: #F2B544; }
+  .ng-cond-bg { fill: #06122A; }
+  .ng-cond { font: 500 10px var(--mono); fill: #A9BEDF; }
+  .ng-budget { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px; align-items: end; padding: 14px 0; border-top: 1px solid var(--scope-line-2); border-bottom: 1px solid var(--scope-line-2); }
+  .ng-budget .readout { display: flex; flex-direction: column; gap: 6px; }
+  .ng-budget .readout b { font-size: 2rem; }
+  .ng-budget .readout i { font-style: normal; color: var(--readout-3); font-size: 0.6em; margin-left: 2px; }
+  .ng-meter { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 2px; height: 22px; margin-bottom: 4px; }
+  .ng-meter span { background: var(--scope-3); box-shadow: inset 0 0 0 1px var(--scope-line); }
+  .ng-meter span.on { background: var(--blue); box-shadow: none; }
+  .ng-legend { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--scope-line); border: 1px solid var(--scope-line); }
+  .ng-legend > div { background: var(--scope-2); padding: 10px 12px; }
+  .ng-legend dt { color: var(--readout-3); }
+  .ng-legend dd { margin: 4px 0 0; color: var(--readout-2); font-size: 0.88rem; line-height: 1.45; }
+  .ng-foot { color: var(--readout-3); font-size: 0.82rem; }
+  @media (max-width: 640px) {
+    .ng-head { grid-template-columns: auto minmax(0, 1fr); }
+    .ng-spec { grid-column: 1 / -1; border-left: 0 !important; border-top: 1px solid var(--scope-line); }
+    .ng-budget { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    .ng-legend { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>

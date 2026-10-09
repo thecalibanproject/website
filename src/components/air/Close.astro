@@ -1,0 +1,54 @@
+---
+import { CONTACT_HREF } from '../../config';
+interface Props { title?: string; body?: string; secondary?: { label: string; href: string } }
+const {
+  title = 'Your island. Your models. Your rules.',
+  body = 'Caliban is in development with design partners. If your data can’t leave your walls but your teams need AI that knows it, we should talk.',
+  secondary = { label: 'Read the architecture', href: '/architecture/' },
+} = Astro.props;
+---
+<section class="close scope" aria-labelledby="close-title">
+  <div class="container close-grid">
+    <figure class="verse">
+      <svg class="rings" viewBox="0 0 400 400" aria-hidden="true">
+        <circle cx="200" cy="200" r="190" /><circle cx="200" cy="200" r="150" /><circle cx="200" cy="200" r="112" />
+        <circle cx="200" cy="200" r="78" /><circle cx="200" cy="200" r="46" /><circle class="core" cx="200" cy="200" r="18" />
+        <rect class="landed" x="195" y="195" width="10" height="10" />
+      </svg>
+      <blockquote>
+        <p>Be not afeard; the isle is full of noises, sounds, and sweet airs, that give delight and hurt not.</p>
+      </blockquote>
+      <figcaption>Caliban, <cite>The Tempest</cite>, Act III, Scene 2</figcaption>
+    </figure>
+    <div class="close-act">
+      <h2 id="close-title">{title}</h2>
+      <p>{body}</p>
+      <div class="close-btns">
+        <a href={CONTACT_HREF} class="btn btn-primary btn-lg">Talk to us</a>
+        <a href={secondary.href} class="btn btn-secondary btn-lg">{secondary.label}</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .close { position: relative; overflow: hidden; padding-block: 120px; border-top: 1px solid var(--scope-line-2); background: var(--scope-1); }
+  .rings { display: block; width: 168px; height: 168px; margin: 0 0 36px; }
+  .rings circle { fill: none; stroke: var(--ring); stroke-width: 2; }
+  .rings .core { fill: rgba(29, 78, 216, 0.18); stroke: var(--blue-hi); }
+  .rings .landed { fill: none; stroke: var(--target); stroke-width: 3; }
+  .close-grid { position: relative; }
+  .close-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 72px; align-items: end; }
+  .verse { margin: 0; }
+  .verse blockquote { margin: 0; }
+  .verse p { font-family: var(--sans); font-style: italic; font-weight: 400; font-size: clamp(1.6rem, 3vw, 2.5rem); line-height: 1.25; color: var(--readout); max-width: 26ch; text-wrap: balance; }
+  .verse figcaption { margin-top: 20px; color: var(--readout-3); font-size: 0.95rem; }
+  .verse cite { font-style: normal; }
+  .close-act h2 { font-size: clamp(2.4rem, 4.6vw, 4rem); }
+  .close-act p { margin-top: 18px; color: var(--readout-2); font-size: 1.12rem; max-width: 48ch; }
+  .close-btns { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+  @media (max-width: 1080px) {
+    .close-grid { grid-template-columns: minmax(0, 1fr); gap: 48px; }
+    .close { padding-block: 88px; }
+  }
+</style>

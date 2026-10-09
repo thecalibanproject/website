@@ -1,0 +1,142 @@
+---
+const rules = [
+  { k: 'KEY', title: 'Your keys', you: 'You bring the provider keys.', we: 'Caliban seals them with AES-256-GCM under your key-encryption key and never pools them across tenants, which also closes the cross-tenant prompt-cache leak gateways are known for.' },
+  { k: 'EGR', title: 'Zero egress', you: 'You choose where it runs.', we: 'Control plane, console, datastores and models run inside your boundary. Nothing calls home; telemetry is off unless you point it at your own collector.' },
+  { k: 'AUD', title: 'Verifiable audit', you: 'You answer to auditors.', we: 'Every control-plane change is one transaction plus one hash-chained audit row, and the API reports whether the chain still verifies.' },
+  { k: 'OWN', title: 'Open weights', you: 'You pick the models.', we: 'The default bundle ships only Apache-2.0 and MIT weights, pinned by revision and hashed. Licence and jurisdiction rules are enforced per tenant.' },
+];
+const compliance = [
+  { code: 'GDPR', body: 'Reversible pseudonymization before data leaves your boundary, per-tenant keys, crypto-shredding for erasure. It is pseudonymization, not anonymization: under EDPB Guidelines 01/2025 the output is still personal data.', href: 'https://www.edpb.europa.eu/system/files/2025-01/edpb_guidelines_202501_pseudonymisation_en.pdf', src: 'EDPB 01/2025' },
+  { code: 'EU AI ACT', body: 'Article 50 transparency duties apply from 2026-08-02. The design carries AI-interaction disclosure flags, response metadata and exportable request logs that deployers can hand over.', href: '/research/07-gateway-serving-and-sovereign-deployment/', src: 'Research 07' },
+  { code: 'HIPAA', body: 'The standard privacy tier targets all 18 Safe Harbor identifiers. Caliban does not claim de-identified output without an Expert Determination for your workload.', href: 'https://www.hhs.gov/hipaa/for-professionals/special-topics/de-identification/index.html', src: 'HHS guidance' },
+  { code: 'SOC 2', body: 'Append-only, hash-chained audit log of every admin change, exportable through GET /api/v1/audit. Evidence your auditors can use, not a SOC 2 report.', href: '/developers/', src: 'Audit API' },
+];
+---
+<section class="section paper sov" aria-labelledby="sov-title">
+  <div class="container">
+    <div class="head">
+      <h2 id="sov-title">Sovereign by construction.</h2>
+      <p>Sovereignty is a property of the architecture, not a setting. The same binary runs as SaaS, in your VPC, or air-gapped from signed offline bundles, and in every shape the boundary is drawn the same way.</p>
+    </div>
+
+    <div class="sov-grid">
+      <figure class="boundary">
+        <svg class="bd-wide" viewBox="0 0 560 470" role="img" aria-labelledby="bd-title bd-desc">
+          <title id="bd-title">Your boundary</title>
+          <desc id="bd-desc">Inside your boundary: the Caliban data plane, control plane, model servers, PII vault, caches and datastores, and your keys. Outside: optional providers reached with your own keys, only through the screen stage.</desc>
+          <rect x="1" y="1" width="558" height="468" fill="none" stroke="#A6BCDB" stroke-dasharray="4 6" />
+          <text x="16" y="26" class="t-cap">Internet</text>
+          <rect x="40" y="52" width="360" height="392" fill="#F6F9FD" stroke="#1D4ED8" stroke-width="2" />
+          <text x="56" y="80" class="t-cap blue">Your boundary</text>
+          <g class="boxes">
+            <rect x="60" y="100" width="320" height="58" /><text x="74" y="125" class="t-h">caliban router</text><text x="74" y="145" class="t-m">data plane, one Rust binary</text>
+            <rect x="60" y="170" width="154" height="58" /><text x="72" y="195" class="t-h">control plane</text><text x="72" y="215" class="t-m">Postgres · audit</text>
+            <rect x="226" y="170" width="154" height="58" /><text x="238" y="195" class="t-h">model servers</text><text x="238" y="215" class="t-m">vLLM · llama.cpp</text>
+            <rect x="60" y="240" width="154" height="58" /><text x="72" y="265" class="t-h">PII vault</text><text x="72" y="285" class="t-m">per-tenant keys</text>
+            <rect x="226" y="240" width="154" height="58" /><text x="238" y="265" class="t-h">caches, replica</text><text x="238" y="285" class="t-m">Qdrant · Parquet</text>
+            <rect x="60" y="310" width="320" height="58" /><text x="74" y="335" class="t-h">your datasources</text><text x="74" y="355" class="t-m">MongoDB · Postgres · warehouses · files</text>
+          </g>
+          <rect x="60" y="384" width="320" height="40" fill="#1D4ED8" />
+          <text x="74" y="409" class="t-key">KEK in your KMS or HSM. Keys never leave.</text>
+          <rect x="416" y="214" width="134" height="70" fill="#E8F1FF" stroke="#A6BCDB" />
+          <text x="428" y="240" class="t-h">providers</text><text x="428" y="260" class="t-m">BYOK, optional</text>
+          <line x1="380" y1="129" x2="483" y2="129" stroke="#1D4ED8" stroke-width="2" />
+          <line x1="483" y1="129" x2="483" y2="214" stroke="#1D4ED8" stroke-width="2" />
+          <rect x="433" y="152" width="100" height="24" fill="#1D4ED8" />
+          <text x="483" y="168" text-anchor="middle" class="t-gate">SCREEN</text>
+        </svg>
+        <svg class="bd-tall" viewBox="0 0 360 620" role="img" aria-labelledby="bd-title-m">
+          <title id="bd-title-m">Your boundary: everything inside stays; providers are outside and optional, reached only through the screen stage.</title>
+          <rect x="1" y="1" width="358" height="618" fill="none" stroke="#A6BCDB" stroke-dasharray="4 6" />
+          <text x="14" y="24" class="t-cap">Internet</text>
+          <rect x="14" y="40" width="332" height="420" fill="#F6F9FD" stroke="#1D4ED8" stroke-width="2" />
+          <text x="28" y="66" class="t-cap blue">Your boundary</text>
+          <g class="boxes">
+            <rect x="28" y="82" width="304" height="56" /><text x="40" y="106" class="t-h">caliban router</text><text x="40" y="126" class="t-m">data plane, one Rust binary</text>
+            <rect x="28" y="148" width="148" height="56" /><text x="38" y="172" class="t-h">control plane</text><text x="38" y="192" class="t-m">Postgres · audit</text>
+            <rect x="184" y="148" width="148" height="56" /><text x="194" y="172" class="t-h">model servers</text><text x="194" y="192" class="t-m">vLLM · llama.cpp</text>
+            <rect x="28" y="214" width="148" height="56" /><text x="38" y="238" class="t-h">PII vault</text><text x="38" y="258" class="t-m">per-tenant keys</text>
+            <rect x="184" y="214" width="148" height="56" /><text x="194" y="238" class="t-h">caches, replica</text><text x="194" y="258" class="t-m">Qdrant · Parquet</text>
+            <rect x="28" y="280" width="304" height="56" /><text x="40" y="304" class="t-h">your datasources</text><text x="40" y="324" class="t-m">MongoDB · Postgres · files</text>
+          </g>
+          <rect x="28" y="348" width="304" height="40" fill="#1D4ED8" />
+          <text x="40" y="373" class="t-key">KEK in your KMS or HSM.</text>
+          <line x1="180" y1="400" x2="180" y2="530" stroke="#1D4ED8" stroke-width="2" />
+          <rect x="130" y="448" width="100" height="24" fill="#1D4ED8" />
+          <text x="180" y="464" text-anchor="middle" class="t-gate">SCREEN</text>
+          <rect x="113" y="530" width="134" height="66" fill="#E8F1FF" stroke="#A6BCDB" />
+          <text x="125" y="556" class="t-h">providers</text><text x="125" y="576" class="t-m">BYOK, optional</text>
+        </svg>
+        <figcaption>Air-gapped deployments drop the provider box entirely. Everything else stays where it is.</figcaption>
+      </figure>
+
+      <ol class="rules">
+        {rules.map((r) => (
+          <li class="rule">
+            <span class="r-k">{r.k}</span>
+            <div class="r-body">
+              <h3>{r.title}</h3>
+              <p><strong>{r.you}</strong> {r.we}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+
+    <div class="comp">
+      <p class="comp-lead"><strong>Designed to support your obligations.</strong> Caliban is not certified under any of these frameworks.</p>
+      <ol class="comp-list">
+        {compliance.map((c) => (
+          <li>
+            <span class="c-code">{c.code}</span>
+            <p>{c.body}</p>
+            <a href={c.href} {...(c.href.startsWith('http') ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>{c.src}</a>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </div>
+</section>
+
+<style>
+  .sov-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 48px; align-items: start; }
+  .boundary { margin: 0; }
+  .boundary svg { width: 100%; height: auto; display: block; }
+  .bd-tall { display: none !important; }
+  .boundary :global(.boxes rect) { fill: #FFFFFF; stroke: var(--rule); }
+  .boundary :global(.t-cap) { font: 600 13px var(--display); letter-spacing: 0.08em; text-transform: uppercase; fill: #4F5D7C; }
+  .boundary :global(.t-cap.blue) { fill: #1D4ED8; }
+  .boundary :global(.t-h) { font: 600 15px var(--sans); fill: #0A1430; }
+  .boundary :global(.t-m) { font: 400 10px var(--mono); font-stretch: 87.5%; fill: #4F5D7C; }
+  .boundary :global(.t-key) { font: 600 11px var(--mono); font-stretch: 87.5%; fill: #FFFFFF; }
+  .boundary :global(.t-gate) { font: 700 12px var(--display); letter-spacing: 0.1em; fill: #FFFFFF; }
+  .boundary figcaption { margin-top: 12px; color: var(--ink-3); font-size: 0.92rem; }
+
+  .rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .rule { display: grid; grid-template-columns: 64px minmax(0, 1fr); background: var(--strip); border: 1px solid var(--rule); }
+  .r-k { background: var(--blue); color: #fff; font-family: var(--mono); font-stretch: 87.5%; font-weight: 600; font-size: 0.78rem; padding: 14px 10px; }
+  .r-body { padding: 14px 18px 16px; border-left: 1px solid var(--rule); }
+  .r-body h3 { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; font-size: 1.25rem; }
+  .r-body p { margin-top: 6px; color: var(--ink-2); font-size: 0.98rem; }
+  .r-body strong { color: var(--ink); }
+
+  .comp { margin-top: 56px; border-top: 1px solid var(--rule); padding-top: 22px; }
+  .comp-lead { color: var(--ink-2); margin-bottom: 16px; }
+  .comp-lead strong { color: var(--ink); }
+  .comp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .comp-list li { display: grid; grid-template-columns: 120px minmax(0, 1fr) auto; align-items: stretch; background: var(--strip); border: 1px solid var(--rule); }
+  .comp-list li > * { padding: 14px 16px; min-width: 0; }
+  .comp-list li > * + * { border-left: 1px solid var(--rule); }
+  .c-code { background: var(--blue); color: #fff; font-family: var(--mono); font-weight: 700; font-size: 0.82rem; }
+  .comp-list p { color: var(--ink-2); font-size: 0.95rem; line-height: 1.55; }
+  .comp-list a { font-family: var(--display); font-weight: 700; font-size: 0.92rem; text-decoration: none; white-space: nowrap; align-self: center; }
+  @media (max-width: 1080px) {
+    .sov-grid { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .bd-wide { display: none !important; }
+    .bd-tall { display: block !important; }
+    .comp-list li { grid-template-columns: 88px minmax(0, 1fr); }
+    .comp-list a { grid-column: 2; border-left: 1px solid var(--rule); border-top: 1px solid var(--rule); }
+  }
+</style>

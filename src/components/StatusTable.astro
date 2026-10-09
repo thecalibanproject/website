@@ -1,0 +1,30 @@
+---
+// Per-crate build status, from core/README.md. Built is a filled blue square; planned work is a hollow square.
+import type { CrateStatus } from '../data/status';
+interface Props { rows: CrateStatus[]; caption?: string }
+const { rows, caption = 'Build status per crate in core/, from core/README.md' } = Astro.props;
+---
+<div class="table-wrap st" tabindex="0" role="region" aria-label={caption}>
+  <table>
+    <caption class="sr-only">{caption}</caption>
+    <thead><tr><th scope="col">Crate</th><th scope="col">Status</th><th scope="col">Role</th></tr></thead>
+    <tbody>
+      {rows.map((r) => (
+        <tr>
+          <td><code>{r.crate}</code></td>
+          <td><span class="st-parts">{r.parts.map((p) => <span class:list={['status', p.state]}>{p.label}</span>)}</span></td>
+          <td>{r.role}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
+<style>
+  .st { margin-block: 0; }
+  .st table { min-width: 720px; }
+  .st td:first-child { white-space: nowrap; }
+  .st td:first-child code { background: none; padding: 0; color: var(--blue-deep); font-weight: 600; }
+  .st td:nth-child(2) { width: 260px; }
+  .st-parts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .st td { color: var(--ink-2); }
+</style>

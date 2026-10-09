@@ -1,0 +1,356 @@
+---
+// The signature: a live radar scope of simulated requests crossing Caliban's real stage order,
+// with a strip bay that prints every request that lands at the sovereign core.
+// Model ids and intents come from core/config/open-models.example.toml; tenants are fictional.
+const RINGS = [
+  { id: 'clear', label: 'CLEAR', r: 1.0 },
+  { id: 'route', label: 'ROUTE', r: 0.82 },
+  { id: 'screen', label: 'SCREEN', r: 0.645 },
+  { id: 'cache', label: 'CACHE', r: 0.485 },
+  { id: 'ground', label: 'GROUND', r: 0.335 },
+  { id: 'core', label: 'CORE', r: 0.165 },
+];
+---
+<div class="scope-wrap" data-scope-root>
+  <figure class="scope-figure">
+    <canvas class="scope-canvas" data-scope aria-describedby="scope-desc" role="img" aria-label="Radar scope of simulated requests passing Caliban's stages: clear, route, screen, cache, ground, and landing at the core."></canvas>
+    <figcaption class="sr-only" id="scope-desc">
+      Requests enter from the edge and move inward through rings labelled clear (identity, policy and quotas), route (intent and model),
+      screen (personal data replaced with surrogates when the route leaves your boundary), cache, and ground (ontology), before landing at the core: your own hardware. Each landed request is printed as a strip below.
+      Selecting a ring jumps to that stage on the page.
+    </figcaption>
+    <ul class="ring-keys" aria-label="Stages">
+      {RINGS.map((r) => <li><a href={`#stage-${r.id}`} class="ring-key" data-ring-key={r.id}>{r.label}</a></li>)}
+    </ul>
+  </figure>
+
+  <div class="bay" aria-label="Strip bay: requests that landed at the core">
+    <div class="bay-head" aria-hidden="true">
+      <span>Code</span><span>Request</span><span>Tenant</span><span>Intent</span><span>Routed to</span><span>PII</span><span>Cache</span><span>Lane</span><span>Time</span>
+    </div>
+    <ol class="bay-list" data-bay></ol>
+    <p class="bay-note">Simulated traffic: real stage order and model names from the configs, fictional tenants. Requests routed to your own models keep their text; requests routed to an outside provider (BYOK) are pseudonymized first.</p>
+  </div>
+</div>
+
+<script>
+  type Stage = 'enter' | 'clear' | 'screen' | 'route' | 'cache' | 'ground' | 'core';
+  interface Req {
+    id: string; tenant: string; intent: string; model: string; pii: number; hit: boolean; hold: boolean;
+    lane: string; a: number; r: number; v: number; drift: number; stage: Stage; holdUntil: number; born: number; frozen: boolean; landedAt?: number;
+    trail: { a: number; r: number }[]; lastTrail: number;
+  }
+
+  const RING: Record<Exclude<Stage, 'enter'>, number> = { clear: 1.0, route: 0.82, screen: 0.645, cache: 0.485, ground: 0.335, core: 0.165 };
+  const ORDER: Exclude<Stage, 'enter'>[] = ['clear', 'route', 'screen', 'cache', 'ground', 'core'];
+  const TENANTS = ['ACME', 'NORTHWIND', 'GLOBEX', 'INITECH'];
+  const INTENTS: { intent: string; model: string; lane: string; grounded: boolean }[] = [
+    { intent: 'analytics', model: 'local/qwen3.8-27b', lane: 'MONGO', grounded: true },
+    { intent: 'analytics', model: 'local/qwen3.8-27b', lane: 'REPLICA', grounded: true },
+    { intent: 'chat', model: 'local/qwen3.5-9b', lane: 'CHAT', grounded: false },
+    { intent: 'summarize', model: 'local/qwen3.6-35b-a3b', lane: 'RAG', grounded: true },
+    { intent: 'extraction', model: 'local/gpt-oss-20b', lane: 'CHAT', grounded: false },
+    { intent: 'chat', model: 'openai/gpt-5-mini', lane: 'CHAT', grounded: false },
+    { intent: 'summarize', model: 'openai/gpt-5-mini', lane: 'RAG', grounded: true },
+    { intent: 'code', model: 'local/qwen3.8-27b', lane: 'CHAT', grounded: false },
+  ];
+
+  const root = document.querySelector<HTMLElement>('[data-scope-root]');
+  const canvas = root?.querySelector<HTMLCanvasElement>('[data-scope]');
+  const bay = root?.querySelector<HTMLOListElement>('[data-bay]');
+  const ctx = canvas?.getContext('2d');
+
+  if (root && canvas && bay && ctx) {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const css = getComputedStyle(document.documentElement);
+    const C = {
+      ring: '#1C3B73', ringHi: '#3E6CF2', tick: 'rgba(124,196,255,0.34)', label: '#7F96BD',
+      target: '#7CC4FF', block: '#E8F1FF', blockDim: '#A9BEDF', amber: '#F2B544', blue: '#1D4ED8', core: '#3E6CF2',
+    };
+    const mono = (px: number) => `400 ${px}px "B612 Mono", ui-monospace, monospace`;
+    const disp = (px: number) => `700 ${px}px "B612", ui-sans-serif, sans-serif`;
+    void css;
+
+    let W = 0, H = 0, R = 0, cx = 0, cy = 0, dpr = 1;
+    const resize = () => {
+      const box = canvas.getBoundingClientRect();
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      W = box.width; H = box.height;
+      canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      R = Math.min(W, H) * 0.405; cx = W / 2; cy = H / 2;
+    };
+
+    let seq = 0x7f2a;
+    const reqs: Req[] = [];
+    const rand = <T,>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)];
+    const spawn = (now: number, r = 1.18, a = Math.random() * Math.PI * 2): Req => {
+      const pick = rand(INTENTS);
+      seq = (seq + 0x3b1) & 0xffff;
+      return {
+        id: seq.toString(16).toUpperCase().padStart(4, '0'), tenant: rand(TENANTS), intent: pick.intent, model: pick.model,
+        pii: Math.random() < 0.65 ? 1 + Math.floor(Math.random() * 4) : 0, hit: Math.random() < 0.2, hold: Math.random() < 0.14,
+        lane: pick.grounded ? pick.lane : 'CHAT', a, r, v: 0.075 + Math.random() * 0.03, drift: -(0.05 + Math.random() * 0.06),
+        stage: 'enter', holdUntil: 0, born: now, frozen: false, trail: [], lastTrail: 0,
+      };
+    };
+
+    const stageAt = (q: Req): Stage => {
+      let s: Stage = 'enter';
+      for (const k of ORDER) if (q.r <= RING[k]) s = k;
+      return s;
+    };
+
+    const counters = { scope: 0, held: 0, pii: 0, landed: 0 };
+    const setReadout = (k: keyof typeof counters) => {
+      const el = document.querySelector<HTMLElement>(`[data-readout="${k}"]`);
+      if (el) el.textContent = String(counters[k]).padStart(k === 'landed' ? 4 : 2, '0');
+    };
+
+    const strip = (q: Req, held = false) => {
+      const li = document.createElement('li');
+      li.className = 'bay-strip';
+      li.dataset.id = q.id;
+      const t = new Date();
+      const time = `${String(t.getUTCHours()).padStart(2, '0')}:${String(t.getUTCMinutes()).padStart(2, '0')}:${String(t.getUTCSeconds()).padStart(2, '0')}Z`;
+      const cells = [
+        `<span class="c-code${held ? ' hold' : ''}">${q.tenant.slice(0, 3)}<br>${q.id}</span>`,
+        `<span>req_${q.id.toLowerCase()}</span>`,
+        `<span>${q.tenant.toLowerCase()}</span>`,
+        `<span>${q.intent}</span>`,
+        held ? `<span class="c-model c-held">held: quota</span>` : `<span class="c-model">${q.hit ? 'cache' : q.model}</span>`,
+        `<span>${held ? '–' : q.model.startsWith('local/') ? 'raw ok' : q.pii ? `${q.pii} surr.` : '0'}</span>`,
+        `<span>${held ? '–' : q.hit ? 'hit' : 'miss'}</span>`,
+        `<span>${held || q.hit ? '–' : q.lane.toLowerCase()}</span>`,
+        `<span>${time}</span>`,
+      ];
+      li.innerHTML = cells.join('');
+      bay.prepend(li);
+      while (bay.children.length > 4) bay.lastElementChild?.remove();
+    };
+
+    // Hover/tap a target to freeze it; its strip lifts in the bay.
+    let hover: Req | null = null;
+    const pointer = (ev: PointerEvent) => {
+      const b = canvas.getBoundingClientRect();
+      const x = ev.clientX - b.left, y = ev.clientY - b.top;
+      let best: Req | null = null, bd = 22;
+      for (const q of reqs) {
+        const px = cx + Math.cos(q.a) * q.r * R, py = cy + Math.sin(q.a) * q.r * R;
+        const d = Math.hypot(px - x, py - y);
+        if (d < bd) { bd = d; best = q; }
+      }
+      if (hover && hover !== best) hover.frozen = false;
+      hover = best;
+      if (best) best.frozen = true;
+      const dist = Math.hypot(x - cx, y - cy) / R;
+      const ring = ORDER.find((k) => Math.abs(dist - RING[k]) < 0.035);
+      canvas.style.cursor = best || ring ? 'pointer' : 'default';
+      canvas.dataset.ring = ring ?? '';
+      if (!reduce) return;
+      draw(performance.now());
+    };
+    canvas.addEventListener('pointermove', pointer);
+    canvas.addEventListener('pointerleave', () => { if (hover) hover.frozen = false; hover = null; canvas.dataset.ring = ''; });
+    canvas.addEventListener('click', () => {
+      const ring = canvas.dataset.ring;
+      if (ring) document.getElementById(`stage-${ring}`)?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+    });
+
+    let sweep = -Math.PI / 2;
+    type Box = { x: number; y: number; w: number; h: number };
+    const hit = (a: Box, b: Box) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    const draw = (now: number) => {
+      ctx.clearRect(0, 0, W, H);
+      const placed: Box[] = [];
+      // Range rings and labels.
+      for (const k of ORDER) {
+        const rr = RING[k] * R;
+        ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2);
+        const active = canvas.dataset.ring === k;
+        ctx.strokeStyle = active ? C.ringHi : C.ring; ctx.lineWidth = active ? 2 : 1;
+        if (k === 'core') { ctx.fillStyle = 'rgba(29,78,216,0.16)'; ctx.fill(); ctx.strokeStyle = C.core; }
+        ctx.stroke();
+        if (R < 170) continue; // small scopes: the key row below names the rings
+        ctx.font = disp(Math.max(10, R * 0.034)); ctx.fillStyle = active ? '#fff' : C.label; ctx.textBaseline = 'middle';
+        const la = -Math.PI * 0.62;
+        const label = k.toUpperCase();
+        ctx.save(); ctx.translate(cx + Math.cos(la) * rr, cy + Math.sin(la) * rr);
+        const tw = ctx.measureText(label).width;
+        ctx.fillStyle = '#06122A'; ctx.fillRect(-tw / 2 - 5, -8, tw + 10, 16);
+        placed.push({ x: cx + Math.cos(la) * rr - tw / 2 - 6, y: cy + Math.sin(la) * rr - 9, w: tw + 12, h: 18 });
+        ctx.fillStyle = active ? '#fff' : C.label; ctx.textAlign = 'center'; ctx.fillText(label, 0, 1);
+        ctx.restore();
+      }
+      // Bearing ticks around the outer ring.
+      ctx.strokeStyle = C.tick; ctx.lineWidth = 1;
+      for (let d = 0; d < 360; d += 5) {
+        const a = (d * Math.PI) / 180, long = d % 30 === 0;
+        const r1 = R * 1.035, r2 = R * (long ? 1.085 : 1.055);
+        ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); ctx.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2); ctx.stroke();
+        if (long && R > 150) {
+          ctx.font = mono(Math.max(8, R * 0.024)); ctx.fillStyle = C.label; ctx.textAlign = 'center';
+          const br = ((d + 90) % 360).toString().padStart(3, '0');
+          ctx.textBaseline = 'middle';
+          const bxp = cx + Math.cos(a) * R * 1.135, byp = cy + Math.sin(a) * R * 1.135;
+          ctx.fillText(br, bxp, byp);
+          placed.push({ x: bxp - 14, y: byp - 7, w: 28, h: 14 });
+        }
+      }
+      // Sweep.
+      if (!reduce && 'createConicGradient' in ctx) {
+        const g = (ctx as CanvasRenderingContext2D).createConicGradient(sweep - 0.75, cx, cy);
+        g.addColorStop(0, 'rgba(62,108,242,0)');
+        g.addColorStop(0.118, 'rgba(62,108,242,0.22)');
+        g.addColorStop(0.1195, 'rgba(124,196,255,0.55)');
+        g.addColorStop(0.12, 'rgba(62,108,242,0)');
+        g.addColorStop(1, 'rgba(62,108,242,0)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+      }
+      // Core mark: the sovereign core with Caliban's moon.
+      ctx.fillStyle = '#E8F1FF'; ctx.beginPath(); ctx.arc(cx, cy, Math.max(4, R * 0.03), 0, Math.PI * 2); ctx.fill();
+
+      // Targets with leader-lined data blocks.
+      for (const q of reqs) {
+        const px = cx + Math.cos(q.a) * q.r * R, py = cy + Math.sin(q.a) * q.r * R;
+        const held = q.hold && q.stage === 'clear' && now < q.holdUntil;
+        const col = held ? C.amber : C.target;
+        const s = Math.max(5, R * 0.02);
+        ctx.strokeStyle = col; ctx.lineWidth = q === hover ? 2.2 : 1.4;
+        ctx.strokeRect(px - s / 2, py - s / 2, s, s);
+        if (q === hover) { ctx.beginPath(); ctx.arc(px, py, s * 1.8, 0, Math.PI * 2); ctx.stroke(); }
+        // Afterglow: past positions fade like phosphor.
+        q.trail.forEach((t, i) => {
+          const alpha = ((i + 1) / (q.trail.length + 1)) * 0.45;
+          ctx.fillStyle = held ? `rgba(242,181,68,${alpha})` : `rgba(124,196,255,${alpha})`;
+          ctx.beginPath(); ctx.arc(cx + Math.cos(t.a) * t.r * R, cy + Math.sin(t.a) * t.r * R, 1.6, 0, Math.PI * 2); ctx.fill();
+        });
+        if (R < 110 || q.r > 1.12) continue;
+        const fs = Math.max(9, Math.min(11.5, R * 0.03));
+        ctx.font = mono(fs); ctx.textBaseline = 'top';
+        const l1 = `${q.tenant.slice(0, 3)} ${q.id}`;
+        let l2 = q.intent.toUpperCase();
+        if (q.stage === 'clear') l2 = held ? 'HOLD QUOTA' : 'CLEARED';
+        if (q.stage === 'screen') l2 = !q.model.startsWith('local/') ? (q.pii ? `PII ${q.pii} SURROGATED` : 'PII 0') : 'SOVEREIGN RAW OK';
+        if (q.stage === 'route') l2 = q.model.replace('local/', '').toUpperCase();
+        if (q.stage === 'cache') l2 = q.hit ? 'CACHE HIT' : 'CACHE MISS';
+        if (q.stage === 'ground') l2 = q.lane === 'CHAT' ? 'NO GROUNDING' : `ONT ${q.lane}`;
+        if (q.stage === 'core') l2 = 'LANDED';
+        const tw = Math.max(ctx.measureText(l1).width, ctx.measureText(l2).width);
+        const bh = fs * 2.5;
+        // Try positions around the target, outward first; take the first that overlaps nothing.
+        const out = Math.atan2(py - cy, px - cx);
+        let best: { box: Box; lx: number; ly: number } | null = null;
+        for (const off of [0, 0.7, -0.7, 1.4, -1.4, 2.1, -2.1, Math.PI]) {
+          for (const dist of [18, 30]) {
+            const ang = out + off;
+            const lx = px + Math.cos(ang) * dist, ly = py + Math.sin(ang) * dist;
+            const left = Math.cos(ang) >= 0;
+            const box = { x: left ? lx : lx - tw, y: ly - bh / 2, w: tw, h: bh };
+            if (box.x < 4 || box.x + box.w > W - 4 || box.y < 4 || box.y + box.h > H - 4) continue;
+            if (!best) best = { box, lx, ly };
+            if (!placed.some((p) => hit(p, box))) { best = { box, lx, ly }; break; }
+          }
+          if (best && !placed.some((p) => hit(p, best!.box))) break;
+        }
+        if (!best || placed.some((p) => hit(p, best!.box))) continue; // no free spot: show the target alone
+        placed.push({ x: best.box.x - 3, y: best.box.y - 2, w: best.box.w + 6, h: best.box.h + 4 });
+        ctx.strokeStyle = 'rgba(124,196,255,0.5)'; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(best.lx, best.ly); ctx.stroke();
+        ctx.textAlign = 'left';
+        ctx.fillStyle = C.block; ctx.fillText(l1, best.box.x, best.box.y);
+        ctx.fillStyle = held ? C.amber : C.blockDim; ctx.fillText(l2, best.box.x, best.box.y + fs * 1.3);
+      }
+    };
+
+    let last = performance.now(), nextSpawn = 0, raf = 0, running = false;
+    const step = (now: number) => {
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      sweep += dt * 1.05;
+      if (now > nextSpawn && reqs.length < 7) { reqs.push(spawn(now)); nextSpawn = now + 1300 + Math.random() * 1100; }
+      for (let i = reqs.length - 1; i >= 0; i--) {
+        const q = reqs[i];
+        if (q.frozen) continue;
+        const prev = q.stage;
+        if (q.stage === 'clear' && q.hold && now < q.holdUntil) { q.a += q.drift * dt * 0.4; continue; }
+        const speed = q.hit && (q.stage === 'cache' || q.stage === 'ground') ? q.v * 2.6 : q.v;
+        if (now - q.lastTrail > 140) { q.trail.push({ a: q.a, r: q.r }); if (q.trail.length > 9) q.trail.shift(); q.lastTrail = now; }
+        q.r -= speed * dt; q.a += q.drift * dt;
+        q.stage = stageAt(q);
+        if (q.stage !== prev) {
+          if (q.stage === 'clear' && q.hold) { q.holdUntil = now + 1500; counters.held++; setReadout('held'); }
+          if (q.stage === 'screen' && q.pii && !q.model.startsWith('local/')) { counters.pii += q.pii; setReadout('pii'); }
+        }
+        if (q.r <= RING.core * 0.55) {
+          reqs.splice(i, 1);
+          counters.landed++; setReadout('landed');
+          strip(q, q.hold);
+        }
+      }
+      counters.scope = reqs.filter((q) => q.r <= 1.0).length; setReadout('scope');
+      draw(now);
+      if (running) raf = requestAnimationFrame(step);
+    };
+
+    const start = () => { if (running || reduce) return; running = true; last = performance.now(); raf = requestAnimationFrame(step); };
+    const stop = () => { running = false; cancelAnimationFrame(raf); };
+
+    const boot = () => {
+      resize();
+      if (reduce) {
+        // A still frame: one target on each stage, the bay pre-printed.
+        const now = performance.now();
+        ORDER.slice(0, 5).forEach((k, i) => { const q = spawn(now, RING[k] - 0.02, -Math.PI / 2 + i * 1.25); q.stage = k; reqs.push(q); });
+        for (let i = 0; i < 4; i++) { strip(spawn(now), i === 1); counters.landed++; if (i === 1) counters.held++; }
+        setReadout('landed'); setReadout('held');
+        draw(now);
+        return;
+      }
+      for (let i = 0; i < 4; i++) { const q = spawn(performance.now(), 1.0 - i * 0.2); q.stage = stageAt(q); reqs.push(q); }
+      for (let i = 0; i < 3; i++) { strip(spawn(performance.now()), i === 2); counters.landed++; if (i === 2) counters.held++; }
+      setReadout('landed'); setReadout('held');
+      draw(performance.now());
+      const io = new IntersectionObserver(([e]) => (e.isIntersecting ? start() : stop()), { threshold: 0.05 });
+      io.observe(canvas);
+      document.addEventListener('visibilitychange', () => (document.hidden ? stop() : start()));
+    };
+
+    new ResizeObserver(() => { resize(); draw(performance.now()); }).observe(canvas);
+    (document.fonts?.load(mono(11)) ?? Promise.resolve()).then(boot, boot);
+  }
+</script>
+
+<style>
+  .scope-wrap { display: contents; }
+  .scope-figure { position: relative; margin: 0; grid-area: scope; min-width: 0; }
+  .scope-canvas { display: block; width: 100%; aspect-ratio: 1 / 1; max-height: min(78vh, 760px); margin-inline: auto; touch-action: manipulation; }
+  .ring-keys { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+  .ring-key { display: block; padding: 3px 8px; border: 1px solid var(--scope-line); color: var(--readout-3) !important; font-family: var(--display); font-weight: 700; letter-spacing: 0.14em; font-size: 0.72rem; text-decoration: none; text-align: right; }
+  .ring-key:hover, .ring-key:focus-visible { color: #fff !important; border-color: var(--target); }
+
+  .bay { grid-area: bay; min-width: 0; margin-top: 8px; }
+  .bay-head, :global(.bay-strip) { display: grid; grid-template-columns: 76px 1fr 1fr 1fr 1.6fr 0.7fr 0.6fr 0.7fr 0.9fr; }
+  .bay-head { padding: 0 1px 8px; color: var(--readout-3); font-family: var(--display); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.72rem; }
+  .bay-head span { padding-inline: 12px; }
+  .bay-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; min-height: calc(4 * 46px + 12px); }
+  :global(.bay-strip) { background: var(--strip); color: var(--ink); border: 1px solid #fff; font-family: var(--mono); font-size: 0.74rem; animation: print .7s var(--ease-out) both; }
+  :global(.bay-strip > span) { padding: 9px 12px; border-left: 1px solid var(--rule); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  :global(.bay-strip > span:first-child) { border-left: 0; }
+  :global(.bay-strip .c-code) { background: var(--blue); color: #fff; font-weight: 600; line-height: 1.25; font-size: 0.7rem; padding-block: 6px; }
+  :global(.bay-strip .c-model.c-held) { color: var(--amber-ink); }
+  :global(.bay-strip .c-code.hold) { background: var(--amber); color: var(--scope-1); }
+  :global(.bay-strip .c-model) { color: var(--blue-deep); font-weight: 600; }
+  @keyframes print { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+  .bay-note { margin-top: 10px; color: var(--readout-3); font-size: 0.85rem; }
+
+  @media (max-width: 1080px) {
+    .bay-head, :global(.bay-strip) { grid-template-columns: 70px 1fr 1fr 1.5fr 0.7fr; }
+    .bay-head span:nth-child(n+2), :global(.bay-strip > span:nth-child(n+2)) { display: none; }
+    .bay-head span:is(:nth-child(2), :nth-child(4), :nth-child(5), :nth-child(6)),
+    :global(.bay-strip > span:is(:nth-child(2), :nth-child(4), :nth-child(5), :nth-child(6))) { display: block; }
+  }
+  @media (max-width: 640px) {
+    .bay-head, :global(.bay-strip) { grid-template-columns: 62px 1fr 1.5fr 0.6fr; }
+    .bay-head span:nth-child(4), :global(.bay-strip > span:nth-child(4)) { display: none; }
+    .ring-keys { justify-content: flex-start; }
+  }
+</style>
