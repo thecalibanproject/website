@@ -95,10 +95,10 @@ pii_mode = "reversible"
 
 const routeRs = `// core/crates/caliban-route/src/lib.rs
 //! Staged pipeline; each stage may exit early:
-//! 0. rules/policy (pinned model, trust tier, licence) — implemented
-//! 1. embedding kNN over tenant exemplars — TODO (shares the request embedding with the cache)
-//! 2. ONNX multi-head classifier (intent, difficulty, OOS, jailbreak) — TODO, artifacts from \`ml/\`
-//! 3. small-LLM fallback for ambiguous traffic — TODO
+//! 0. rules/policy (pinned model, trust tier, licence): implemented
+//! 1. embedding kNN over tenant exemplars: TODO (shares the request embedding with the cache)
+//! 2. ONNX multi-head classifier (intent, difficulty, OOS, jailbreak): TODO, artifacts from \`ml/\`
+//! 3. small-LLM fallback for ambiguous traffic: TODO
 //! 4. pick a model within the route: ordered candidates now; cost/latency scoring + bandit later
 
 /// Outcome of routing: an ordered list of models to try (first preferred, rest fallbacks).

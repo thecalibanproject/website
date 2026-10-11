@@ -1,10 +1,10 @@
 // Helpers for docs rendered from ../docs.
 
-/** First Markdown H1, without a leading "NN — " number prefix. */
+/** First Markdown H1, without a leading "NN - " number prefix (hyphen, en dash or em dash). */
 export function docTitle(body: string | undefined, fallback: string): string {
   const m = body?.match(/^#\s+(.+)$/m);
   if (!m) return fallback;
-  return m[1].replace(/^\d\d\s+[—–-]\s+/, '').trim();
+  return m[1].replace(/^\d\d\s+[\u2014\u2013-]\s+/, '').trim();
 }
 
 /** The italic "*Research date …*" line that most notes start with, if present. */
