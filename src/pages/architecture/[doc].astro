@@ -19,6 +19,12 @@ export async function getStaticPaths() {
       crumb: 'Repos & conventions',
       description: 'Caliban repositories, product decisions, licensing and runtime conventions: ports, environment variables, the request extension, the Anthropic Messages API and rate limits.',
     },
+    'p3-nodes-plan': {
+      slug: 'p3-nodes-plan',
+      code: 'P3N',
+      crumb: 'P3 plan: nodes',
+      description: 'The approved P3 plan for nodes: where the work starts, its principles, milestones M1 to M8, the decisions made and the order of work.',
+    },
   };
   const docs = await getCollection('architecture');
   return docs
@@ -31,9 +37,13 @@ const title = docTitle(entry.body, entry.id);
 const html = processDocHtml(entry.rendered?.html ?? '', 'architecture');
 const headings = (entry.rendered?.metadata?.headings ?? []) as { depth: number; slug: string; text: string }[];
 const dateline = docDateline(entry.body);
-const other = entry.id === 'repos-and-conventions'
-  ? { label: 'Reference architecture', href: '/architecture/reference/' }
-  : { label: 'Repos & conventions', href: '/architecture/repos-and-conventions/' };
+const others = [
+  { id: 'caliban-reference-architecture', label: 'Reference architecture', href: '/architecture/reference/' },
+  { id: 'repos-and-conventions', label: 'Repos & conventions', href: '/architecture/repos-and-conventions/' },
+  { id: 'p3-nodes-plan', label: 'P3 plan: nodes', href: '/architecture/p3-nodes-plan/' },
+]
+  .filter((o) => o.id !== entry.id)
+  .map(({ label, href }) => ({ label, href }));
 ---
 <Base title={title} description={route.description}>
   <DocPage
@@ -48,6 +58,6 @@ const other = entry.id === 'repos-and-conventions'
     ]}
     source={`docs/architecture/${entry.id}.md`}
     crumbs={[{ label: 'Architecture', href: '/architecture/' }, { label: route.crumb }]}
-    related={[{ label: 'Architecture overview', href: '/architecture/' }, other, { label: 'Deployment', href: '/deployment/' }, { label: 'All research notes', href: '/research/' }]}
+    related={[{ label: 'Architecture overview', href: '/architecture/' }, ...others, { label: 'Deployment', href: '/deployment/' }, { label: 'All research notes', href: '/research/' }]}
   />
 </Base>

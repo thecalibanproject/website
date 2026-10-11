@@ -27,6 +27,7 @@ export function docRoute(rel: string): string | null {
   if (m) return `/research/${m[1]}/`;
   if (clean === 'architecture/caliban-reference-architecture.md') return '/architecture/reference/';
   if (clean === 'architecture/repos-and-conventions.md') return '/architecture/repos-and-conventions/';
+  if (clean === 'architecture/p3-nodes-plan.md') return '/architecture/p3-nodes-plan/';
   return null;
 }
 

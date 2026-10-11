@@ -25,6 +25,7 @@ The site is not hosted publicly yet. Run it locally as described below.
 | `/architecture/` | `src/pages/architecture/index.astro` | System overview and diagram, the six capabilities, the 14-stage request lifecycle, evidence, deployment shapes, per-crate build status, roadmap, repositories, and the decisions made and still open. |
 | `/architecture/reference/` | `src/pages/architecture/[doc].astro` | Full rendering of `docs/architecture/caliban-reference-architecture.md`. |
 | `/architecture/repos-and-conventions/` | `src/pages/architecture/[doc].astro` | Full rendering of `docs/architecture/repos-and-conventions.md`. |
+| `/architecture/p3-nodes-plan/` | `src/pages/architecture/[doc].astro` | Full rendering of `docs/architecture/p3-nodes-plan.md`. |
 | `/platform/ontology/` | `src/pages/platform/ontology.astro` | The ontology layer: typed CQIR compiled to a MongoDB pipeline or to SQL over a CDC-fed replica. |
 | `/platform/routing/` | `src/pages/platform/routing.astro` | Intent classification and routing within tenant trust tiers and policies. |
 | `/platform/privacy/` | `src/pages/platform/privacy.astro` | Pseudonymisation with realistic surrogates and streaming rehydration. |
@@ -43,7 +44,7 @@ The site is not hosted publicly yet. Run it locally as described below.
 The build reads sibling checkouts of two other repos. Both must sit next to this one (`../docs` and `../core`) or the build fails.
 
 - **Research notes.** `src/content.config.ts` defines a `research` content collection with Astro's `glob` loader over `../docs/research`, matching `[0-9][0-9]-*.md` (the numbered notes, currently 01 to 09). Each note becomes a page under `/research/`. The Markdown has no frontmatter: the title is the first H1, the research date comes from the italic dateline, and `src/lib/docs.ts` rewrites relative links between docs to site routes and unwraps links that leave the docs tree. The short card blurbs, tags and platform cross-links are maintained by hand in `src/data/research.ts`.
-- **Architecture documents.** A second collection, `architecture`, loads `../docs/architecture/*.md`. Two of those documents are routed: the reference architecture (`/architecture/reference/`) and repos and conventions (`/architecture/repos-and-conventions/`).
+- **Architecture documents.** A second collection, `architecture`, loads `../docs/architecture/*.md`. Three of those documents are routed: the reference architecture (`/architecture/reference/`), repos and conventions (`/architecture/repos-and-conventions/`) and the P3 nodes plan (`/architecture/p3-nodes-plan/`).
 - **API reference.** `src/lib/openapi.ts` parses `../core/api/openapi.yaml` at build time, and the Developers page lists every operation across the data and control planes from it.
 - **Hand-maintained data.** Crate build status (`src/data/status.ts`, copied from the layout table in core's README), hardware tiers, evidence, FAQ, request stages and code samples live in `src/data/`.
 

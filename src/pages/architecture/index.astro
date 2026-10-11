@@ -310,6 +310,7 @@ const onPage = [
       <div class="docs-links">
         <a class="doc-link strip-link" href="/architecture/reference/"><span class="dl-code">REF</span><span class="dl-text"><strong>Reference architecture</strong><span>The full v0.1 document, rendered from the docs repo</span></span></a>
         <a class="doc-link strip-link" href="/architecture/repos-and-conventions/"><span class="dl-code">REP</span><span class="dl-text"><strong>Repos & conventions</strong><span>Ports, env vars, the request extension, rate limits</span></span></a>
+        <a class="doc-link strip-link" href="/architecture/p3-nodes-plan/"><span class="dl-code">P3N</span><span class="dl-text"><strong>P3 plan: nodes</strong><span>Milestones, decisions and order of work for nodes</span></span></a>
       </div>
     </div>
   </section>
@@ -398,7 +399,7 @@ const onPage = [
   .gaps { margin-top: 14px; }
   .gaps ul { margin: 0; padding: 12px 14px 12px 32px; display: grid; gap: 6px; font-size: 0.9rem; list-style: square; }
   .gaps li::marker { color: var(--target); }
-  .docs-links { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 48px; }
+  .docs-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 48px; }
   .doc-link { display: grid; grid-template-columns: 64px minmax(0, 1fr); background: var(--strip); border: 1px solid var(--rule); color: var(--ink); text-decoration: none; }
   .scope .doc-link { color: var(--ink); }
   .dl-code { background: var(--blue); color: #fff; font-family: var(--mono); font-weight: 600; font-size: 0.78rem; display: grid; place-items: center; }
