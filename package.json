@@ -10,7 +10,9 @@
     "preview": "ASTRO_TELEMETRY_DISABLED=1 astro preview",
     "check": "ASTRO_TELEMETRY_DISABLED=1 astro check",
     "check:links": "node scripts/check-links.mjs",
-    "screenshots": "node scripts/screenshots.mjs"
+    "screenshots": "node scripts/screenshots.mjs",
+    "docs:build": "npm --prefix docs-site run build",
+    "build:all": "npm run build && npm run docs:build && node -e \"require('fs').rmSync('dist/docs',{recursive:true,force:true});require('fs').cpSync('docs-site/dist','dist/docs',{recursive:true})\""
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.4",
