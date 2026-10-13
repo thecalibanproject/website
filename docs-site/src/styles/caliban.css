@@ -1,0 +1,112 @@
+/* Caliban docs theme, from the website's DESIGN.md ("Sovereign Airspace").
+   Dark is the scope, light is strip paper. Caliban blue is the only chromatic ink; Target Cyan stays
+   on the dark surface. Square corners, 1px rules, no shadows. Fonts are self-hosted (OFL). */
+
+@font-face { font-family: 'B612'; font-style: normal; font-weight: 700; font-display: swap; src: url('../assets/fonts/B612-Bold.woff2') format('woff2'); }
+@font-face { font-family: 'Atkinson Hyperlegible Next'; font-style: normal; font-weight: 200 800; font-display: swap; src: url('../assets/fonts/AtkinsonNext.woff2') format('woff2'); }
+@font-face { font-family: 'Atkinson Hyperlegible Next'; font-style: italic; font-weight: 200 800; font-display: swap; src: url('../assets/fonts/AtkinsonNext-Italic.woff2') format('woff2'); }
+@font-face { font-family: 'IBM Plex Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('../assets/fonts/PlexMono-400.woff2') format('woff2'); }
+@font-face { font-family: 'IBM Plex Mono'; font-style: normal; font-weight: 600; font-display: swap; src: url('../assets/fonts/PlexMono-600.woff2') format('woff2'); }
+
+:root {
+  --sl-font: 'Atkinson Hyperlegible Next', ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
+  --sl-font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --caliban-heading: 'B612', ui-sans-serif, system-ui, sans-serif;
+
+  /* Dark: the scope. */
+  --sl-color-accent-low: #102E7A;
+  --sl-color-accent: #3E6CF2;
+  --sl-color-accent-high: #7CC4FF;
+  --sl-color-white: #E8F1FF;
+  --sl-color-gray-1: #E8F1FF;
+  --sl-color-gray-2: #A9BEDF;
+  --sl-color-gray-3: #7F96BD;
+  --sl-color-gray-4: #4A6290;
+  --sl-color-gray-5: #1C3B73;
+  --sl-color-gray-6: #0A1A39;
+  --sl-color-gray-7: #06122A;
+  --sl-color-black: #040B1C;
+  --sl-color-hairline: rgba(124, 196, 255, 0.16);
+  --sl-color-hairline-light: rgba(124, 196, 255, 0.16);
+  --sl-color-hairline-shade: #040B1C;
+  --sl-color-bg-nav: #040B1C;
+  --sl-color-bg-sidebar: #06122A;
+  --sl-color-bg-inline-code: #0F2448;
+  --sl-color-text-accent: #7CC4FF;
+}
+
+:root[data-theme='light'] {
+  /* Light: strip paper. */
+  --sl-color-accent-low: #DCE9F7;
+  --sl-color-accent: #1D4ED8;
+  --sl-color-accent-high: #102E7A;
+  --sl-color-white: #0A1430;
+  --sl-color-gray-1: #0A1430;
+  --sl-color-gray-2: #26324F;
+  --sl-color-gray-3: #4F5D7C;
+  --sl-color-gray-4: #7F8CA8;
+  --sl-color-gray-5: #BFD1EA;
+  --sl-color-gray-6: #E8F1FF;
+  --sl-color-gray-7: #F6F9FD;
+  --sl-color-black: #F6F9FD;
+  --sl-color-hairline: #BFD1EA;
+  --sl-color-hairline-light: #DCE9F7;
+  --sl-color-hairline-shade: #A6BCDB;
+  --sl-color-bg-nav: #F6F9FD;
+  --sl-color-bg-sidebar: #F6F9FD;
+  --sl-color-bg-inline-code: #DCE9F7;
+  --sl-color-text-accent: #1D4ED8;
+}
+
+/* Square corners and no lift, everywhere. */
+:root { --sl-border-radius: 0; }
+*, *::before, *::after { border-radius: 0 !important; box-shadow: none !important; }
+
+body { font-feature-settings: 'tnum'; }
+
+/* Headings in B612, mixed case. */
+h1, h2, h3, h4,
+.sl-markdown-content :is(h1, h2, h3, h4),
+.site-title {
+  font-family: var(--caliban-heading);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+h1#_top { letter-spacing: -0.02em; }
+
+/* Inline code: Deep Blue on darker ice (light), readout on scope well (dark). */
+.sl-markdown-content :not(pre) > code {
+  color: var(--sl-color-accent-high);
+  background: var(--sl-color-bg-inline-code);
+  border: 0;
+  padding: 0.1em 0.35em;
+  font-size: 0.85em;
+}
+
+/* Tables: ruled, with engraved caps in the head. */
+.sl-markdown-content table { border-collapse: collapse; }
+.sl-markdown-content th {
+  font-family: var(--caliban-heading);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: var(--sl-color-gray-6);
+}
+.sl-markdown-content :is(th, td) { border: 1px solid var(--sl-color-hairline); }
+
+/* Screenshots: a 1px rule, no shadow; the caption in the line under it. */
+.sl-markdown-content img { border: 1px solid var(--sl-color-hairline-shade); }
+.sl-markdown-content p:has(> img) + p > em:only-child { color: var(--sl-color-gray-3); font-size: 0.9em; }
+
+/* Asides: a ruled strip with a key colour. Caution keeps blue (amber means stopped), danger is amber. */
+.starlight-aside { border-inline-start-width: 4px; }
+.starlight-aside--caution {
+  --sl-color-asides-text-accent: var(--sl-color-accent-high);
+  --sl-color-asides-border: var(--sl-color-accent);
+  background-color: var(--sl-color-accent-low);
+}
+:root:not([data-theme='light']) .starlight-aside--caution { background-color: #0A1A39; }
+.starlight-aside--danger { --sl-color-asides-border: #F2B544; }
+
+/* Sidebar group labels as engraved caps. */
+.sidebar-content .group-label .large { font-family: var(--caliban-heading); font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; }
