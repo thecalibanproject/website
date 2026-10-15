@@ -73,6 +73,8 @@ The fastest way to grow a test set is from real conversations. When an assistant
    - **This answer was wrong**. Say what it should have done (required, at most 4000 characters): the grader checks future answers against your words. Optionally, pick what went wrong, such as "Should have asked a question first". This failure label is stored on the conversation.
 4. Choose **Save test case**. The case is added to the test cases of the conversation's version and runs with its tests from now on.
 
+A saved case lives as long as the conversation it came from. When the conversation passes the retention period (30 days by default) or is [deleted](conversations-and-runs.md#delete-a-conversation), Caliban removes the case from every test set that holds it, including copies carried to other versions. Cases you write by hand are kept.
+
 What the saved case contains:
 - its id is the conversation's id, so a conversation is saved once per version;
 - its input is the conversation's input, and the replies people gave during it become its pre-filled replies;
@@ -81,7 +83,7 @@ What the saved case contains:
 - for a wrong answer: a **Grader** check (threshold 0.7) whose description of a good answer is what you wrote, with the failure label if you picked one. Actions are not checked, because Caliban does not know which one was the mistake. If it was an action, add a `tool_call` check with `"must_not_call": true` with **Edit cases**;
 - the tags `captured`, `good` or `bad`, and `mast:<label>` when you picked a failure label.
 
-Saving needs the permission that edits test cases (`nodes.write`). The case holds the conversation's content, so like the conversation itself only roles with `runs.data` can read it. Each save is recorded in the [audit log](audit.md) (`node.golden_set.capture`) with ids, the verdict, the label and counts, never your note or the conversation's content.
+Saving needs two permissions: `nodes.write`, because it edits the test cases, and `runs.data`, because the case copies the conversation's content (its input, the replies and the answer) into them. Without either, Caliban answers `403` and names the missing one. The built-in roles that can edit assistants (`developer`, `tenant_admin`, `admin`, `owner`) have both. Each save is recorded in the [audit log](audit.md) (`node.golden_set.capture`) with ids, the verdict, the label and counts, never your note or the conversation's content.
 
 Caliban refuses to save a conversation that has not finished, one already saved in that version, a conversation from a safety test (its input carries an attack), a wrong answer without a note, and a case whose input does not fit the version.
 
@@ -100,7 +102,7 @@ curl -X POST http://caliban.internal:8081/api/v1/tenants/cedar-bank/runs/$RUN_ID
 | `mast_label` | What went wrong, one of 14 failure labels (`bad` only). The console shows them in plain words |
 | `version` | The version whose test cases receive the case. Default: the conversation's version. Name a newer version to carry a regression case forward; the input must fit that version's input format |
 
-The answer is `201` with the case's id, its check kinds and the test set's new fingerprint (`hash`), and the case itself for roles with `runs.data`. If someone edits the test cases at the same moment, no edit is lost: Caliban retries, and answers `409` if the set keeps changing.
+The answer is `201` with the case's id, its check kinds, the test set's new fingerprint (`hash`) and the case itself. If someone edits the test cases at the same moment, no edit is lost: Caliban retries, and answers `409` if the set keeps changing.
 
 ## Run tests
 
@@ -200,7 +202,15 @@ Quality tests never change anything in your systems. A test conversation (its or
 
 Everything else works as in production: approvals still apply (a pre-filled reply approves or denies the write; a write that needs approval and has no reply is denied), only declared actions can be called, and personal data protection runs first. The stand-in only replaces the final call.
 
-**Connected-system actions that only read.** By default, every action of a [connected system](connected-systems.md) is answered by a stand-in during tests, reads included, so a test never reaches an outside system. When a test needs real data from a read-only action, you can let that action run live in tests: it is a setting on each action, and only actions whose effect is `read` can use it. Otherwise, give the case a scripted result for the read, so the assistant sees realistic data. Built-in tools that read your own data (your [databases](data-connections.md) and document libraries) run for real.
+**Connected-system actions that only read.** By default, every action of a [connected system](connected-systems.md) is answered by a stand-in during tests, reads included, so a test never reaches an outside system and gives the same result each time. A "read" is what the spec claims; on your system it may still log, bill or count against a rate limit. When a test needs real data from a read-only action, let that action run live in tests with `"eval_live": true` on its entry in the [assistant spec](../reference/assistant-spec.md#toolseval_live):
+
+```json
+{"ref": "mcp://bank-ops/lookup_transaction#sha256:...", "effect": "read", "eval_live": true}
+```
+
+Caliban refuses a version that sets `eval_live` on a write action, a built-in tool or a sub-assistant. When a run reaches the same action through [sub-assistants](../reference/glossary.md#sub-assistant), it runs live only if every declaration of it says `eval_live` and none declares it a write. A case's scripted result still wins over a live call. Otherwise, give the case a scripted result for the read, so the assistant sees realistic data.
+
+Built-in tools that read your own data (your [databases](data-connections.md) and [document libraries](knowledge.md), `builtin://datasource_query` and `builtin://rag_search`) always run for real: Caliban itself makes sure they only read.
 
 **What the test records.** Every call is recorded as the action would have received it, after personal data protection. With `runs.data`, the test run's details list each call and whether the stand-in answered it. In the console, a result shows how many actions were "answered by the stand-in".
 

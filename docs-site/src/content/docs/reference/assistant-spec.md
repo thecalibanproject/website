@@ -202,6 +202,20 @@ Say `write` when the tool changes something (issues a refund, sends a message). 
 
 The [data labels](../reference/glossary.md#data-labels) this tool's arguments may carry without a person approving. Every label on the arguments must match an entry. It is standing permission for every run of the version, so keep it narrow. The version's view warns about `*` and about `tool:` patterns wider than one server. Also applies to read tools that reach the network through their arguments (a URL to fetch).
 
+### `tools[].eval_live`
+
+| | |
+|---|---|
+| Type | boolean |
+| Default | `false`: quality tests answer this action with a stand-in |
+| Enforced | Yes |
+
+Whether [quality tests](../guides/tests-and-go-live.md#write-tools-in-tests) call this action for real. Allowed only on an `mcp://` action with `effect: read`; on a write, a built-in tool or a `node://` reference the version is refused. A test case's scripted result still wins. When a run reaches the same action through sub-assistants, it runs live only if every declaration of it says `eval_live` and none declares it a write. Built-in tools always run for real in tests.
+
+```json
+{"ref": "mcp://bank-ops/lookup_transaction#sha256:...", "effect": "read", "eval_live": true}
+```
+
 ### `tools[].requires`
 
 | | |

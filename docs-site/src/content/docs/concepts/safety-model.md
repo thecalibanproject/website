@@ -73,7 +73,7 @@ Results from the 2026-10-13 recordings, with a real 27B model:
 
 - An injection that changes the meaning of an answer in the model's own words, with no link, contact, code or repeated phrase ("the clinic is closed today"). The answer check's second rule is a detector, and adaptive attacks get around detectors. An assistant that must be immune keeps outside free text away from the model that writes its answer.
 - Labels belong to whole values. A marked field labels the whole input and everything derived from it, which can be coarse.
-- A read-only action that you let run live in quality tests reaches the real system during tests. Actions that change something never do: in tests they are answered by a stand-in. See [write tools in tests](../guides/tests-and-go-live.md#write-tools-in-tests).
+- A read-only action that an assistant lets run live in quality tests (`eval_live`) reaches the real system during tests. Actions that change something never do: in tests they are answered by a stand-in. See [write tools in tests](../guides/tests-and-go-live.md#write-tools-in-tests).
 
 ## Related
 

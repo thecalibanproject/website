@@ -23,7 +23,7 @@ Hide and restore suits assistants that must quote identifiers back (a refund to 
 
 Detection is layered:
 
-- **Built-in detectors** find e-mail addresses, phone numbers (international with a country code, North American, French national format), card numbers (checked with the Luhn digit), IBANs (checked with their mod-97 key), US social security numbers and French social security numbers (with their key). The checks keep false alarms down: a digit run inside a longer number, such as a score of `0.0322...`, is never taken for a card.
+- **Built-in detectors** find e-mail addresses, phone numbers (international with a country code, North American, French national format), card numbers (checked with the Luhn digit; 15-digit UATP airline cards included), IBANs (checked with their mod-97 key), US social security numbers and French social security numbers (with their key). The checks keep false alarms down: a digit run inside a longer number, such as a score of `0.0322...`, is never taken for a card.
 - **Your own patterns.** Identifier formats the built-ins do not know, such as a patient or matter number. Up to 50 per workspace.
 - **Your dictionary.** Names and codes to always hide, matched as whole words, case-insensitive. Up to 10,000 terms per workspace. The law demo used a 25-name dictionary of clients and parties.
 - **Name detection (optional).** A multilingual model that finds names of people, organisations and places. It is a separate build option and was not deployed in the demos: there, names in free text reached the model in clear unless they were in the dictionary. If names matter, deploy it, or list the names you know.
@@ -59,6 +59,8 @@ Models inside your trust boundary (trust tiers "On your servers" and "Verified e
 ## The assistant's floor
 
 An [assistant](../reference/glossary.md#assistant) can set its own minimum protection, applied to every model call it makes, on-premises models included. A floor only makes protection stricter: the call gets the stricter of the floor and the workspace's mode, ordered off, then Hide and restore, then Hide everywhere. The health triage assistant set Hide everywhere so patients' identifiers never reached any model.
+
+A single request can also ask for stricter protection (`caliban.pii`), never weaker: a request asking for less than the workspace's mode is handled with the workspace's mode, and the answer reports it in `x-caliban-pii-override`.
 
 Text from tools and documents follows the same rules. Only string values are rewritten in structured data: keys and numbers never change, so the model always receives valid JSON.
 
