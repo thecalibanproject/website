@@ -2,6 +2,7 @@
 // air-gapped install. Checks every HTML page (src, href of <link>, srcset, inline style url())
 // and every CSS and JS file (url(), @import, fetch/import of absolute URLs).
 // Outbound <a href> links are allowed: they are only followed when a reader clicks them.
+// Also checks that the Pagefind search index is in the build and covers every page marked for search.
 //
 //   node scripts/check-offline.mjs [dist]
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
@@ -50,9 +51,20 @@ for (const f of files) {
   }
 }
 
+// Search works offline only if the Pagefind index ships with the pages and covers each of them.
+const entry = join(dist, 'pagefind', 'pagefind-entry.json');
+const searchable = files.filter((f) => f.endsWith('.html') && readFileSync(f, 'utf8').includes('data-pagefind-body')).length;
+let indexed = 0;
+if (!existsSync(entry)) problems.push('pagefind/pagefind-entry.json: no Pagefind search index in the build');
+else {
+  indexed = Object.values(JSON.parse(readFileSync(entry, 'utf8')).languages ?? {}).reduce((n, l) => n + (l.page_count ?? 0), 0);
+  if (searchable === 0) problems.push('no page is marked for search (data-pagefind-body)');
+  if (indexed !== searchable) problems.push(`pagefind: ${indexed} page(s) indexed, ${searchable} marked for search`);
+}
+
 if (problems.length) {
   console.error(problems.join('\n'));
-  console.error(`\n${problems.length} external load(s) in ${dist}.`);
+  console.error(`\n${problems.length} problem(s) in ${dist}.`);
   process.exit(1);
 }
-console.log(`OK: ${files.length} files in ${dist} load nothing from another origin.`);
+console.log(`OK: ${files.length} files in ${dist} load nothing from another origin; the search index covers ${indexed} pages.`);
