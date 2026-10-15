@@ -808,6 +808,7 @@ Assistants are `nodes` in the API.
 | `GET` | `/api/v1/tenants/{tenantId}/runs/{runId}` | A node run (console) |
 | `POST` | `/api/v1/tenants/{tenantId}/runs/{runId}/input` | Answer a question or approve or deny a tainted write (console) |
 | `POST` | `/api/v1/tenants/{tenantId}/runs/{runId}/cancel` | Cancel a run (console) |
+| `POST` | `/api/v1/tenants/{tenantId}/runs/{runId}/golden-case` | Turn a finished run into a golden case |
 | `GET` | `/api/v1/tenants/{tenantId}/inbox` | Runs waiting for a human (console) |
 | `DELETE` | `/api/v1/tenants/{tenantId}/nodes/{nodeId}` | Delete a node version |
 | `GET` | `/api/v1/tenants/{tenantId}/nodes/{nodeName}/versions` | List the versions of a node |
@@ -1120,6 +1121,40 @@ otherwise is a `409` (`run_already_ended`).
 | `403` | Error | [Error](#error) |
 | `404` | Error | [Error](#error) |
 | `409` | Error | [Error](#error) |
+| `503` | Error | [Error](#error) |
+
+### Turn a finished run into a golden case
+
+```http
+POST /api/v1/tenants/{tenantId}/runs/{runId}/golden-case
+```
+
+Production feedback for the eval loop (research note 04, sections 6 and 7). Builds a case
+from the run and appends it to the golden set of the run's version (or of `version`, a
+version of the same node): the run's input, its human steps' answers as scripted
+`answers`, a `json_schema` check when the version has an output schema; for `good`, an
+`llm_judge` check with the run's output as `reference` and a `tool_call` check for each
+write tool it called; for `bad`, an `llm_judge` check whose rubric is the `note`. The case
+id is the run id. The set gets a new hash like an edit (a compare-and-set on the hash read,
+so concurrent edits are not lost). A `mast_label` is stored on the run. Needs `nodes.write`
+(what editing a golden set needs); the `case` is returned with `runs.data`. Audited as
+`node.golden_set.capture` (ids, verdict, label, counts and hashes; never the note or
+content). See docs/evals.md ("Cases from runs").
+
+| Parameter | In | Type | Required | Meaning |
+|---|---|---|---|---|
+| `tenantId` | path | string | yes |  |
+| `runId` | path | string | yes |  |
+
+**Request body:** [GoldenCaseCapture](#goldencasecapture)
+
+| Status | Meaning | Body |
+|---|---|---|
+| `201` | Appended | [CapturedGoldenCase](#capturedgoldencase) |
+| `403` | Error | [Error](#error) |
+| `404` | No such run in this tenant (another tenant's run included), or no such version | [Error](#error) |
+| `409` | The run has not finished, it is already in that golden set, or the set kept changing | [Error](#error) |
+| `422` | `good` on a run that did not succeed, `bad` without a note, a label on `good`, an unknown label, an injection-suite run, or a case that does not fit the set (problems of kind `golden_set`) | [Error](#error) |
 | `503` | Error | [Error](#error) |
 
 ### Runs waiting for a human (console)
@@ -1492,7 +1527,10 @@ POST /api/v1/tenants/{tenantId}/nodes/{nodeName}/versions/{version}/evals
 ordinary node runs on workers, through the request pipeline, as the tenant's eval key (created
 and managed by the control plane, see `GET .../eval-key`), or as the API key `api_key_id`
 when one is named (it must be active and allowed to run the node). The key's quotas apply and
-its usage is metered.
+its usage is metered. Trial runs (origin `eval:<eval>:<case>`) never reach a real write
+tool: every call to a tool with effect `write` goes to the eval sandbox, which answers the
+case's `tool_results` or a synthetic result marked `"sandbox": true`; reads call the real
+tools unless scripted.
 `injection`: the built-in injection suite against sandboxed tools (`k` default 1); the run
 input is `input`, else the input of `input_case` (or the golden set's first case), whose
 checks then measure utility under attack. Needs `nodes.run`; audited as `node.eval.start`.
@@ -2920,13 +2958,47 @@ One immutable node version.
 | `expected` | object | no | Shorthand for an exact check |
 | `checks` | array of [EvalCheck](#evalcheck) | no |  |
 | `answers` | object | no | Scripted answers to human steps, by step id (`clarify#0`, `write#0@approve`) or vertex id (`clarify`, `write@approve`). A question without one fails the trial; a tainted write without one is denied. |
-| `tags` | array of string | no |  |
+| `tool_results` | object | no | Scripted tool results, by tool name (the manifest's, e.g. `refund`) or reference. A trial never calls a write tool (effect `write`): the eval sandbox answers this script, else a synthetic result marked `"sandbox": true` (valid against the tool's output schema when it declares one). A read tool named here answers the script too; other reads call the real tool. |
+| `tags` | array of string | no | Free labels. A case captured from a run has `captured`, its verdict and `mast:<id>`. |
 
 ### EvalCheck
 
 A check of the run output. Text checks see the output as text (a string as is, other JSON compact).
 
-Composed of object, object, object, object, object.
+Composed of object, object, object, object, object, object.
+
+### MastLabel
+
+A MAST failure mode (arXiv 2503.13657): FM-1.1 to FM-1.5 (specification), FM-2.1 to FM-2.6 (inter-agent misalignment), FM-3.1 to FM-3.3 (task verification)
+
+One of `disobey_task_specification`, `disobey_role_specification`, `step_repetition`, `loss_of_conversation_history`, `unaware_of_termination_conditions`, `conversation_reset`, `fail_to_ask_for_clarification`, `task_derailment`, `information_withholding`, `ignored_other_agent_input`, `reasoning_action_mismatch`, `premature_termination`, `no_or_incomplete_verification`, `incorrect_verification`.
+
+### GoldenCaseCapture
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `verdict` | `good`, `bad` | yes | `good`: the run did the right thing (it must have succeeded). `bad`: it did not |
+| `note` | string | no | What the right behaviour is. Required for `bad` (the judge's rubric); added to the rubric for `good` |
+| `mast_label` | [MastLabel](#mastlabel) | no |  |
+| `version` | integer | no | The version whose golden set receives the case (default: the run's version) |
+
+### CapturedGoldenCase
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `object` | `node.golden_case` | yes |  |
+| `run_id` | string | yes |  |
+| `node` | string | yes |  |
+| `version` | integer | yes | The version whose golden set holds the case |
+| `run_version` | integer | yes |  |
+| `case_id` | string | yes | The run id |
+| `verdict` | `good`, `bad` | yes |  |
+| `mast_label` | [MastLabel](#mastlabel) or null | no |  |
+| `checks` | array of `json_schema`, `llm_judge`, `tool_call` | yes | The kinds of the checks derived from the run |
+| `previous_hash` | string or null | no | The set's hash before the capture (`null`: it was created) |
+| `golden_set` | [GoldenSet](#goldenset) | yes |  |
+| `content_visible` | boolean | yes | The caller holds runs.data: `case` is included |
+| `case` | [GoldenCase](#goldencase) | no |  |
 
 ### GoldenSet
 
@@ -3028,6 +3100,8 @@ The evals that met the bar (in the audit entries `node.publish` and `node.promot
 | `run_status` | [RunStatus](#runstatus) | yes |  |
 | `checks` | array of object | yes |  |
 | `judge_usd` | number | no |  |
+| `tool_calls` | integer | no | Tool calls the trial's run made (their arguments are in the sealed `detail.tool_calls`) |
+| `sandboxed_calls` | integer | no | Of them, the ones the eval sandbox answered (every write, and scripted reads): never sent to the tool |
 
 ### InjectionVerdict
 
@@ -3163,6 +3237,7 @@ Tokens of the run's model calls so far
 | `cost_usd` | number | yes |  |
 | `origin` | string | no |  |
 | `invoker` | string | yes | `api_key:<hash prefix>` |
+| `mast_label` | [MastLabel](#mastlabel) | no |  |
 | `created_at` | string | yes |  |
 | `finished_at` | string or null | no |  |
 
@@ -3210,6 +3285,7 @@ The answer guard (docs/nodes.md): present when the final output carried untruste
 | `invoker` | string | no |  |
 | `origin` | string or null | no |  |
 | `input_labels` | array of string | no | Taint labels the run input carries from the start (`caller`) |
+| `mast_label` | [MastLabel](#mastlabel) or null | no | The MAST failure mode a reviewer labelled the run with when capturing it as `bad` (`POST .../runs/{runId}/golden-case`); `null` when unlabelled |
 | `error` | string or null | no |  |
 | `stop_reason` | string or null | no |  |
 | `partial` | boolean | no |  |
