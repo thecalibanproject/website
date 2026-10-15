@@ -5,10 +5,14 @@ on:
     branches: [main]
     paths:
       - docs-site/**
+      - tsconfig.json
+      - package-lock.json
       - .github/workflows/docs-site.yml
   pull_request:
     paths:
       - docs-site/**
+      - tsconfig.json
+      - package-lock.json
       - .github/workflows/docs-site.yml
 
 permissions:
@@ -26,14 +30,19 @@ jobs:
       run:
         working-directory: docs-site
     steps:
-      # The docs site is self-contained: it reads nothing outside docs-site/.
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           # Astro 7 requires node >= 22.12
           node-version: 22
           cache: npm
-          cache-dependency-path: docs-site/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            docs-site/package-lock.json
+      # astro check also reads the website's root tsconfig.json, which extends
+      # astro/tsconfigs/strict, so the root dependencies must be installed too.
+      - run: npm ci
+        working-directory: .
       - run: npm ci
       # TypeScript is pinned to 6.x: astro check does not support TypeScript 7.
       - run: npm run check
