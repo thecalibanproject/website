@@ -1,7 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import PageHero from '../../components/PageHero.astro';
-import EvidenceGrid from '../../components/EvidenceGrid.astro';
+import EvidenceGrid, { type EvidenceItem } from '../../components/EvidenceGrid.astro';
 import CodeTabs from '../../components/CodeTabs.astro';
 import StatusTable from '../../components/StatusTable.astro';
 import NoteLinks from '../../components/NoteLinks.astro';
@@ -10,7 +10,7 @@ import NodeGraph from '../../components/platform/NodeGraph.astro';
 import { NODE_YAML } from '../../data/samples';
 import { crates } from '../../data/status';
 
-const evidence = [
+const evidence: EvidenceItem[] = [
   {
     value: '41–86.7%', bar: { kind: 'span', values: [41, 86.7] }, label: 'Failure rates of free-form multi-agent systems across 7 frameworks',
     detail: 'Mostly from system design and coordination, not model limits.',

@@ -25,6 +25,8 @@ Three more settings refine the mode:
 - **Surrogate scope.** With `Tenant` (the default), the same value always gets the same placeholder in this workspace, so a repeated question can be answered from the cache. The provider could link those requests to each other (not to a person). With `Session`, every request gets fresh placeholders, and requests with personal data skip the cache.
 - **The assistant's floor.** Each assistant can set its own minimum protection (`guardrails.pii` in its settings). It applies to every model call of that assistant, in-house models included, and it can only make protection stronger. See [the assistant spec](../reference/assistant-spec.md).
 
+A request can ask for stricter protection than the workspace's mode (`caliban.pii` in the request), never for weaker. A request that asks for `off` in a workspace that hides personal data still gets it hidden; the answer says so in `x-caliban-pii-override` (for example `ignored;requested=off;applied=mask`), and the ignored value is recorded on the usage event and in the server log. Assistants ignore the request's value: their protection is the workspace's mode raised to the assistant's floor. See [request options](../reference/response-headers.md#the-caliban-request-options).
+
 A prompt that carries a credential (an API key, a password) is refused, whatever the mode.
 
 Through the API: `PATCH /api/v1/tenants/{id}` with `pii_default` (`off`, `mask`, `reversible`), `pii_surrogate_scope` (`tenant`, `session`) and `pii_on_sovereign`.

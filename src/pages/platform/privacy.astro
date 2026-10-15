@@ -1,7 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import PageHero from '../../components/PageHero.astro';
-import EvidenceGrid from '../../components/EvidenceGrid.astro';
+import EvidenceGrid, { type EvidenceItem } from '../../components/EvidenceGrid.astro';
 import Timeline from '../../components/Timeline.astro';
 import CodeTabs from '../../components/CodeTabs.astro';
 import StatusTable from '../../components/StatusTable.astro';
@@ -10,7 +10,7 @@ import Close from '../../components/air/Close.astro';
 import PiiInspector from '../../components/platform/PiiInspector.astro';
 import { crates } from '../../data/status';
 
-const evidence = [
+const evidence: EvidenceItem[] = [
   {
     value: '0.02–0.07 recall', bar: { kind: 'span', values: [2, 7] }, label: 'Recall of a rule-based detector (Presidio) on partial and obfuscated mentions',
     detail: 'Every detector family degrades out of distribution; hybrid cascades do best.',

@@ -88,7 +88,7 @@ Going live is three separate steps today: write the test cases, run the tests, t
 
 **Today**, on the assistant's **Evals** tab:
 
-1. **Write the test cases.** Choose **Edit cases** and enter the test set: each case has an input and the checks a good answer must pass (fields it must have, a pattern it must match, or a description that a [grader](../reference/glossary.md#grader) model checks). The triage example has six cases. See [Tests and going live](../guides/tests-and-go-live.md#test-cases).
+1. **Write the test cases.** Choose **Edit cases** and enter the test set: each case has an input and the checks a good answer must pass (fields it must have, a pattern it must match, or a description that a [grader](../reference/glossary.md#grader) model checks). The triage example has six cases. See [Tests and going live](../guides/tests-and-go-live.md#test-cases). Later, grow the set from real conversations with **Save as test** ([save a run as a test](../guides/tests-and-go-live.md#save-a-run-as-a-test)).
 2. **Set the bar.** Choose **Edit bar**. The bar says how many cases must pass, and how many times in a row each must pass. The health example asks for 80% of cases passing all 3 tries. See [The bar](../guides/tests-and-go-live.md#the-bar).
 3. **Run the tests.** Choose **Start eval** for the test set. An assistant that can read documents or call tools must also pass the [safety tests](../reference/glossary.md#safety-tests): attacks hidden in the data it reads.
 4. **Make it live.** When the gate says the version meets the bar, choose **Make live** on the **Versions** tab. Callers that name the assistant now get this version.

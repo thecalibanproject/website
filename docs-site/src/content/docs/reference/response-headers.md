@@ -17,6 +17,7 @@ These come on chat completions (`/v1/chat/completions`) and Anthropic messages (
 | `x-caliban-cache` | `hit` (a cached answer, no model called), `miss` (a cache applied but had no answer) or `bypass` (no cache applies to this request) |
 | `x-caliban-cache-tier` | On hits only: `exact` (an identical request) or `semantic` (a similar one) |
 | `x-caliban-pii-entities` | How many items of [personal data](glossary.md#personal-data) were protected |
+| `x-caliban-pii-override` | Only when the request's `caliban.pii` was ignored: `ignored;requested=<mode>;applied=<mode>`, because it was weaker than the workspace's protection (see [the caliban request options](#the-caliban-request-options)). On an assistant's answer, `applied=node` |
 | `x-caliban-cost-usd` | Non-streaming answers, when the model has prices: the cost in USD. `0.00000000` on a cache hit |
 | `x-caliban-billed-usd` | Non-streaming answers: what the request is billed. For `caliban/auto`, the flat `caliban/auto` price (a share of it on a cache hit); for an assistant, the cost of its run |
 | `x-caliban-route` | `caliban/auto` in a workspace that sends topics to assistants: the path taken, `node/<name>@v<N>` or `model:<id>` |
@@ -108,7 +109,7 @@ Every request body can carry a `caliban` object. OpenAI and Anthropic clients th
 
 | Field | Values | Effect |
 |---|---|---|
-| `pii` | `off`, `mask`, `reversible` | How personal data is handled for this request, in place of the workspace's mode |
+| `pii` | `off`, `mask`, `reversible` | A stricter personal data protection for this request. It can only raise protection, never lower it: the request gets the strictest of the workspace's mode, `pii_floor` and this value, in the order `off`, `reversible`, `mask`. A weaker value is ignored (not refused), and the answer carries `x-caliban-pii-override`. Assistants ignore it: their protection is fixed by the version (the run API refuses the field with `400`) |
 | `pii_floor` | `off`, `mask`, `reversible` | A minimum protection, applied to every model, models on your own servers included. It only strengthens: the request gets the stricter of this and its mode, in the order `off`, `reversible`, `mask`. An assistant's own privacy setting is sent this way on each of its model calls |
 | `cache` | `off`, `exact`, `semantic` | `off`: no cache. `exact`: identical requests only. `semantic`: also similar requests, when the workspace has that cache on, at any temperature. Unset: exact, plus similar requests up to the temperature limit when the workspace has it on |
 | `reasoning` | `off`, `low`, `medium`, `high` | Whether a reasoning model thinks first, translated for each model family. OpenAI's `reasoning_effort` is accepted too |

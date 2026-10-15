@@ -8,7 +8,7 @@ It works fully offline, so the same build can ship inside an air-gapped install:
 - search is a static Pagefind index in `dist/pagefind/`, loaded from the same origin;
 - screenshots are WebP files in `src/assets/shots/`, copied as they are (no image service at build time).
 
-`npm run check:offline` fails the build output if any page or stylesheet loads something from another origin.
+`npm run check:offline` fails the build output if any page or stylesheet loads something from another origin, or if the Pagefind index is missing or does not cover every page.
 
 ## Build and preview
 
@@ -18,9 +18,12 @@ npm ci
 npm run build            # static site in dist/, served under /docs/
 npm run preview          # http://localhost:4321/docs/
 npm run check:contract   # every page and anchor of the console link contract exists in dist/
-npm run check:offline    # no page loads anything from another origin
-npm run verify           # all three
+npm run check:offline    # no page loads anything from another origin; the search index covers every page
+npm run check            # astro check (TypeScript 6: astro check does not support TypeScript 7)
+npm run verify           # dashes, build, internal links, the contract, offline and search
 ```
+
+CI (`.github/workflows/docs-site.yml`) runs `npm ci`, `npm run check` and `npm run verify` on pull requests and pushes to main that touch `docs-site/`.
 
 `DOCS_BASE=/docs/0.2 npm run build` builds a copy for another path (a versioned bundle). The link contract is always checked against `/docs/`.
 

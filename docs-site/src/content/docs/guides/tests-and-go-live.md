@@ -19,6 +19,7 @@ Each case has:
 - **an input**: what the case sends, in the assistant's input format;
 - **checks**: what the answer must satisfy;
 - **pre-filled replies** (optional): what the test answers when the assistant asks a person something;
+- **scripted results** (optional, `tool_results`): what an action answers during the test, by action name or reference. See [write tools in tests](#write-tools-in-tests);
 - **tags** (optional).
 
 The checks, by plain name (API name in brackets):
@@ -30,8 +31,11 @@ The checks, by plain name (API name in brackets):
 | Must match pattern (`regex`) | A regular expression matches the answer (flags `IGNORECASE`, `MULTILINE`, `DOTALL`) |
 | Must have these fields (`json_schema`) | The answer matches a JSON schema |
 | Grader (`llm_judge`) | A model reads the answer and your description of a good answer (`rubric`), scores it from 0 to 1, and the score reaches `threshold` (default 0.5) |
+| Must call an action (`tool_call`) | The assistant called the action `tool` with arguments that include `args` (optional). With `"must_not_call": true`, it passes when no such call happened |
 
-The grader is called through Caliban like any other model call. It uses the check's `model`, else the test run's grader model, else [automatic routing](../reference/glossary.md#automatic-routing). It treats the answer as data, never as instructions.
+The grader is called through Caliban like any other model call. It uses the check's `model`, else the test run's grader model, else [automatic routing](../reference/glossary.md#automatic-routing). It treats the answer as data, never as instructions. To show it a known good answer, add `reference` (any value) to the check; without it, the grader sees the case's `expected` value, if any.
+
+**Must call an action** names the action by its name (`issue_refund`), its full reference, or its reference without the pin (`mcp://bank-ops/issue_refund`). `args` only lists the arguments you care about: objects match key by key, other values must be equal. Arguments are compared as the action received them, after [personal data protection](privacy.md): an action not trusted with personal data gets stand-ins, so match on amounts, references and ids, not on names or card numbers.
 
 **Pre-filled replies** (`answers`) answer the assistant's questions and approvals during a test, by step id (`clarify#0`, `refund#0@approve`) or step name (`clarify`, `refund@approve`). A question without a reply cancels the run, and the case fails. A write that needs approval and has no reply is denied.
 
@@ -44,7 +48,11 @@ In the console, the **Golden set** card shows the cases. **Edit cases** opens th
    "checks": [{"type": "json_schema", "schema": {"type": "object", "required": ["urgency"]}},
               {"type": "contains", "value": ["clinical"]},
               {"type": "llm_judge", "rubric": "Does the recommendation fit the case?", "threshold": 0.7}]},
-  {"id": "refund", "input": {"case": "Refund my invoice"}, "expected": "billing"}
+  {"id": "refund", "input": {"case": "Refund my invoice"}, "expected": "billing"},
+  {"id": "tx", "input": {"case": "Refund TX-30015"},
+   "tool_results": {"issue_refund": {"status": "refunded", "refund_id": "R-1"}},
+   "checks": [{"type": "tool_call", "tool": "issue_refund", "args": {"tx": "TX-30015"}},
+              {"type": "tool_call", "tool": "mcp://mail/send_email", "must_not_call": true}]}
 ]}
 ```
 
@@ -56,13 +64,45 @@ A version keeps its own test set. When you create a new version, copy the cases 
 
 ## Save a run as a test
 
-The fastest way to grow a test set is from real conversations: open a conversation that went well (or one that went wrong, and correct the answer), and save it as a test case.
+The fastest way to grow a test set is from real conversations. When an assistant answers well, or badly, save that conversation as a test case, and every later version is checked against it.
 
-:::caution[Coming soon]
-"Save as test case" on a conversation is not in the console or the API yet. The intended flow: open the conversation, choose **Save as test case**, correct the answer if needed, pick the checks, and the case is added to the assistant's test set.
+1. Open the conversation (**Conversations**, then pick one). It must have finished.
+2. Choose **Save as test**.
+3. Say whether the answer was right:
+   - **This answer was right** (only for a conversation that succeeded). Optionally, say what a good answer must keep.
+   - **This answer was wrong**. Say what it should have done (required, at most 4000 characters): the grader checks future answers against your words. Optionally, pick what went wrong, such as "Should have asked a question first". This failure label is stored on the conversation.
+4. Choose **Save test case**. The case is added to the test cases of the conversation's version and runs with its tests from now on.
 
-Today, copy the conversation's input from its detail page (it needs the `runs.data` permission), and add a case by hand with **Edit cases** or the golden-set API above.
-:::
+A saved case lives as long as the conversation it came from. When the conversation passes the retention period (30 days by default) or is [deleted](conversations-and-runs.md#delete-a-conversation), Caliban removes the case from every test set that holds it, including copies carried to other versions. Cases you write by hand are kept.
+
+What the saved case contains:
+- its id is the conversation's id, so a conversation is saved once per version;
+- its input is the conversation's input, and the replies people gave during it become its pre-filled replies;
+- a **Must have these fields** check, when the version declares an output format;
+- for a right answer: a **Grader** check (threshold 0.7) with this answer as its `reference`, and a **Must call an action** check for each action that changes something the conversation called (arguments are not checked, since they change from one try to the next);
+- for a wrong answer: a **Grader** check (threshold 0.7) whose description of a good answer is what you wrote, with the failure label if you picked one. Actions are not checked, because Caliban does not know which one was the mistake. If it was an action, add a `tool_call` check with `"must_not_call": true` with **Edit cases**;
+- the tags `captured`, `good` or `bad`, and `mast:<label>` when you picked a failure label.
+
+Saving needs two permissions: `nodes.write`, because it edits the test cases, and `runs.data`, because the case copies the conversation's content (its input, the replies and the answer) into them. Without either, Caliban answers `403` and names the missing one. The built-in roles that can edit assistants (`developer`, `tenant_admin`, `admin`, `owner`) have both. Each save is recorded in the [audit log](audit.md) (`node.golden_set.capture`) with ids, the verdict, the label and counts, never your note or the conversation's content.
+
+Caliban refuses to save a conversation that has not finished, one already saved in that version, a conversation from a safety test (its input carries an attack), a wrong answer without a note, and a case whose input does not fit the version.
+
+With the API:
+
+```sh
+curl -X POST http://caliban.internal:8081/api/v1/tenants/cedar-bank/runs/$RUN_ID/golden-case \
+  -H "authorization: Bearer $CALIBAN_ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"verdict": "bad", "note": "Ask which transaction before refunding.", "mast_label": "fail_to_ask_for_clarification"}'
+```
+
+| Field | Meaning |
+|---|---|
+| `verdict` | `good` (the answer was right) or `bad` (it was wrong). Required |
+| `note` | What the right behaviour is. Required for `bad`, optional for `good` |
+| `mast_label` | What went wrong, one of 14 failure labels (`bad` only). The console shows them in plain words |
+| `version` | The version whose test cases receive the case. Default: the conversation's version. Name a newer version to carry a regression case forward; the input must fit that version's input format |
+
+The answer is `201` with the case's id, its check kinds, the test set's new fingerprint (`hash`) and the case itself. If someone edits the test cases at the same moment, no edit is lost: Caliban retries, and answers `409` if the set keeps changing.
 
 ## Run tests
 
@@ -156,12 +196,26 @@ A single **Go live** button that publishes, runs both test suites and makes the 
 
 ## Write tools in tests
 
-:::danger
-Quality tests call the assistant's **real** tools today. If an assistant can change something (a refund, an email, a ticket), each repeat of each test case can do it for real. In the fintech demo, a quality test run issued a real refund (transaction TX-30015) on the bank's test refund server. Safety tests are not affected: they always use stand-ins.
-:::
+Quality tests never change anything in your systems. A test conversation (its origin is `eval:<test run>:<case>`) runs the assistant as in production, but every call to an action that changes something (effect `write`, in the assistant or any [sub-assistant](../reference/glossary.md#sub-assistant) it uses) goes to a stand-in. The stand-in answers with:
+- the case's scripted result for that action (`tool_results`), when there is one;
+- otherwise a made-up result marked `"sandbox": true`.
 
-Until quality tests replace write tools with stand-ins:
-- **Point the tool server at a test system** while you test. Register a second [connected system](connected-systems.md) for a test environment, or change the server's address before the test and back after (a new address withdraws the tool approvals, so approve them again).
-- **Have the tool server ignore repeats.** Each call carries a unique token id (`jti`) that stays the same when Caliban retries a step. A server that records it applies each write once. See [connected systems](connected-systems.md#approve-a-tool).
-- **Use pre-filled replies to deny the write** (`"refund@approve": {"approve": false}`) when the case only checks what the assistant says, not what it does. This only helps for writes that need an approval.
-- **Keep the case count and `k` small** for assistants with write tools.
+Everything else works as in production: approvals still apply (a pre-filled reply approves or denies the write; a write that needs approval and has no reply is denied), only declared actions can be called, and personal data protection runs first. The stand-in only replaces the final call.
+
+**Connected-system actions that only read.** By default, every action of a [connected system](connected-systems.md) is answered by a stand-in during tests, reads included, so a test never reaches an outside system and gives the same result each time. A "read" is what the spec claims; on your system it may still log, bill or count against a rate limit. When a test needs real data from a read-only action, let that action run live in tests with `"eval_live": true` on its entry in the [assistant spec](../reference/assistant-spec.md#toolseval_live):
+
+```json
+{"ref": "mcp://bank-ops/lookup_transaction#sha256:...", "effect": "read", "eval_live": true}
+```
+
+Caliban refuses a version that sets `eval_live` on a write action, a built-in tool or a sub-assistant. When a run reaches the same action through [sub-assistants](../reference/glossary.md#sub-assistant), it runs live only if every declaration of it says `eval_live` and none declares it a write. A case's scripted result still wins over a live call. Otherwise, give the case a scripted result for the read, so the assistant sees realistic data.
+
+Built-in tools that read your own data (your [databases](data-connections.md) and [document libraries](knowledge.md), `builtin://datasource_query` and `builtin://rag_search`) always run for real: Caliban itself makes sure they only read.
+
+**What the test records.** Every call is recorded as the action would have received it, after personal data protection. With `runs.data`, the test run's details list each call and whether the stand-in answered it. In the console, a result shows how many actions were "answered by the stand-in".
+
+To check what the assistant did, not only what it said, add a **Must call an action** (`tool_call`) check: it compares the arguments the stand-in received.
+
+:::note
+Safety tests always use stand-ins for every action, reads and writes. See [the safety model](../concepts/safety-model.md#safety-tests).
+:::

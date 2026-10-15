@@ -1,7 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import PageHero from '../../components/PageHero.astro';
-import EvidenceGrid from '../../components/EvidenceGrid.astro';
+import EvidenceGrid, { type EvidenceItem } from '../../components/EvidenceGrid.astro';
 import Timeline from '../../components/Timeline.astro';
 import CodeTabs from '../../components/CodeTabs.astro';
 import StatusTable from '../../components/StatusTable.astro';
@@ -10,7 +10,7 @@ import Close from '../../components/air/Close.astro';
 import { CQIR, PIPELINE, SQL } from '../../data/samples';
 import { crates } from '../../data/status';
 
-const evidence = [
+const evidence: EvidenceItem[] = [
   {
     value: '~10–16%', bar: { kind: 'span', values: [10.8, 16] }, label: 'Raw text-to-SQL on real enterprise schemas',
     detail: 'BEAVER ~10.8% (GPT-5.2 agents) · EntSQL 15.9% · data.world insurance benchmark 16% zero-shot.',

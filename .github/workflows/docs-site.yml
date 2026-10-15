@@ -1,0 +1,51 @@
+name: Docs site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs-site/**
+      - tsconfig.json
+      - package-lock.json
+      - .github/workflows/docs-site.yml
+  pull_request:
+    paths:
+      - docs-site/**
+      - tsconfig.json
+      - package-lock.json
+      - .github/workflows/docs-site.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  docs:
+    name: Check, build and verify
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs-site
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          # Astro 7 requires node >= 22.12
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            docs-site/package-lock.json
+      # astro check also reads the website's root tsconfig.json, which extends
+      # astro/tsconfigs/strict, so the root dependencies must be installed too.
+      - run: npm ci
+        working-directory: .
+      - run: npm ci
+      # TypeScript is pinned to 6.x: astro check does not support TypeScript 7.
+      - run: npm run check
+      # Builds the site, then checks dashes, internal links, the console link contract,
+      # offline loads and the Pagefind index.
+      - run: npm run verify

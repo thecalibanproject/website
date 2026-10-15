@@ -1,14 +1,14 @@
 ---
 import Base from '../../layouts/Base.astro';
 import PageHero from '../../components/PageHero.astro';
-import EvidenceGrid from '../../components/EvidenceGrid.astro';
+import EvidenceGrid, { type EvidenceItem } from '../../components/EvidenceGrid.astro';
 import CodeTabs from '../../components/CodeTabs.astro';
 import StatusTable from '../../components/StatusTable.astro';
 import NoteLinks from '../../components/NoteLinks.astro';
 import Close from '../../components/air/Close.astro';
 import { crates } from '../../data/status';
 
-const evidence = [
+const evidence: EvidenceItem[] = [
   {
     value: '0.05–0.1× input', bar: { kind: 'span', values: [5, 10] }, label: 'What provider prompt-cache reads cost, relative to normal input',
     detail: 'The biggest saving per unit of engineering is steering provider caches with stable prefixes, not building another cache.',

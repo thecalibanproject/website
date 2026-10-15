@@ -15,11 +15,13 @@ Plain model requests that no assistant handles are not conversations: find them 
 ![The detail page of a support-desk conversation: run facts, budget used against limits, the answer check, data labels and the steps](../../../assets/shots/run-detail.webp)
 *A conversation of the fintech `support-desk` assistant. It ran 7 steps in 80 s, most of it waiting for a person to approve the refund; it cost $0.0008 and protected 15 items of personal data in its model calls.*
 
+To turn a finished conversation into a test case, choose **Save as test**. See [save a run as a test](tests-and-go-live.md#save-a-run-as-a-test).
+
 The **Run** card:
 
 | Field | Meaning |
 |---|---|
-| Started by | The API key (by its id), the console user, or a test run (`eval:...`) |
+| Started by | The API key (by its id), the console user, or a test run (`eval:<test run>:<case>`) |
 | Version fingerprint | Which exact version ran (`sha256:...`) |
 | Input labels | `caller` when the app marked part of its input as [untrusted](../reference/glossary.md#untrusted) |
 | Created, started, finished, duration | Duration includes time waiting for a person |
@@ -59,7 +61,27 @@ curl http://caliban.internal:8080/v1/runs/run_01a1332e0e8071f48917b2b82f5620db \
 
 The answer has `status`, `output`, `partial`, `error`, `stop_reason`, `awaiting` (the step and question when it waits), `budget`, `cost_usd`, `model_cost_usd`, `usage` and `steps`. `GET /v1/runs` lists the conversations the key may see, with `?node=`, `?status=`, `?created_after=`, `?created_before=`, `?limit=` and `?cursor=`. To stop one: `POST /v1/runs/{id}/cancel` (in the console, **Cancel**). It stops at the next step boundary and keeps the partial result.
 
-Finished conversations are deleted after 30 days by default (`CALIBAN_NODE_RUN_RETENTION_DAYS`). Usage and spend totals are kept.
+Finished conversations are deleted after 30 days by default (`CALIBAN_NODE_RUN_RETENTION_DAYS`), with the [test cases saved from them](tests-and-go-live.md#save-a-run-as-a-test). Usage and spend totals are kept.
+
+## Delete a conversation
+
+To erase a conversation before its retention ends, for example when a person asks for their data to be erased:
+
+```sh
+curl -X DELETE http://caliban.internal:8081/api/v1/tenants/cedar-bank/runs/$RUN_ID \
+  -H "authorization: Bearer $CALIBAN_ADMIN_TOKEN"
+```
+
+It needs `runs.data` and `nodes.write`. In one step, Caliban:
+- removes the test cases saved from the conversation from every test set (audited as `node.golden_set.scrub`);
+- clears the stored content of test runs that used it (their summaries and verdicts stay, marked as content purged);
+- deletes the conversation with its steps and events, and the test conversations made from its content (audited as `node.run.erase`).
+
+A conversation that is still running, or a test run using it that has not finished, gives `409`: try again when it ends. Deleting again is safe. Usage events of its model calls are kept: they hold no content and are needed for billing.
+
+Caliban keeps no index of people. To erase one person's data, find and delete each conversation that holds it.
+
+The hourly cleanup applies the same rule to saved test cases: once a conversation is past `CALIBAN_NODE_RUN_RETENTION_DAYS`, its test cases leave their sets (audited as `node.golden_set.scrub`). Cases written by hand are kept.
 
 ## Timeline
 

@@ -806,8 +806,10 @@ Assistants are `nodes` in the API.
 | `POST` | `/v1/runs/{runId}/input` | Answer the human step a run waits for |
 | `GET` | `/api/v1/tenants/{tenantId}/runs` | The tenant's node runs (console) |
 | `GET` | `/api/v1/tenants/{tenantId}/runs/{runId}` | A node run (console) |
+| `DELETE` | `/api/v1/tenants/{tenantId}/runs/{runId}` | Erase a finished run and everything derived from it |
 | `POST` | `/api/v1/tenants/{tenantId}/runs/{runId}/input` | Answer a question or approve or deny a tainted write (console) |
 | `POST` | `/api/v1/tenants/{tenantId}/runs/{runId}/cancel` | Cancel a run (console) |
+| `POST` | `/api/v1/tenants/{tenantId}/runs/{runId}/golden-case` | Turn a finished run into a golden case |
 | `GET` | `/api/v1/tenants/{tenantId}/inbox` | Runs waiting for a human (console) |
 | `DELETE` | `/api/v1/tenants/{tenantId}/nodes/{nodeId}` | Delete a node version |
 | `GET` | `/api/v1/tenants/{tenantId}/nodes/{nodeName}/versions` | List the versions of a node |
@@ -1070,6 +1072,37 @@ step's `output`, the awaited `question`); `content_visible` says which.
 | `404` | Error | [Error](#error) |
 | `503` | Error | [Error](#error) |
 
+### Erase a finished run and everything derived from it
+
+```http
+DELETE /api/v1/tenants/{tenantId}/runs/{runId}
+```
+
+For a data subject's erasure request, or any reason to purge a run's data before its
+retention. In order: the golden cases captured from the run leave every golden set that
+holds them (a copy carried to another version by a `PUT` included; each set is rewritten,
+resealed and audited as `node.golden_set.scrub` with `reason: erasure`); the evals of the
+node whose sealed plan carries the run's content (a golden plan holding its case, an
+injection plan whose input is the run's input) lose that content (plan and trial details;
+summaries and verdicts stay, the eval shows `content_purged: true`); then the run, its
+steps and events, and the eval runs made with its content are deleted, audited as
+`node.run.erase` (ids and counts, never content). Caliban keeps no index of data
+subjects: erase each run that holds the subject's data. Needs `runs.data` and
+`nodes.write` (it rewrites golden sets). See core/docs/evals.md ("Retention").
+
+| Parameter | In | Type | Required | Meaning |
+|---|---|---|---|---|
+| `tenantId` | path | string | yes |  |
+| `runId` | path | string | yes |  |
+
+| Status | Meaning | Body |
+|---|---|---|
+| `200` | Erased | object |
+| `403` | Missing `runs.data` or `nodes.write` on the tenant | [Error](#error) |
+| `404` | No such run in this tenant | [Error](#error) |
+| `409` | The run, an eval using its content, or a run made with its content has not finished (cancel it or wait, then erase again; erasing again is safe) | [Error](#error) |
+| `503` | Error | [Error](#error) |
+
 ### Answer a question or approve or deny a tainted write (console)
 
 ```http
@@ -1120,6 +1153,42 @@ otherwise is a `409` (`run_already_ended`).
 | `403` | Error | [Error](#error) |
 | `404` | Error | [Error](#error) |
 | `409` | Error | [Error](#error) |
+| `503` | Error | [Error](#error) |
+
+### Turn a finished run into a golden case
+
+```http
+POST /api/v1/tenants/{tenantId}/runs/{runId}/golden-case
+```
+
+Production feedback for the eval loop (research note 04, sections 6 and 7). Builds a case
+from the run and appends it to the golden set of the run's version (or of `version`, a
+version of the same node): the run's input, its human steps' answers as scripted
+`answers`, a `json_schema` check when the version has an output schema; for `good`, an
+`llm_judge` check with the run's output as `reference` and a `tool_call` check for each
+write tool it called; for `bad`, an `llm_judge` check whose rubric is the `note`. The case
+id is the run id. The set gets a new hash like an edit (a compare-and-set on the hash read,
+so concurrent edits are not lost). A `mast_label` is stored on the run. Needs `nodes.write`
+(what editing a golden set needs) and `runs.data` (the case copies the run's content: its
+input, answers and output); a caller without either gets a `403` naming the missing
+permission, before the run is looked up. The `case` is returned. Audited as
+`node.golden_set.capture` (ids, verdict, label, counts and hashes; never the note or
+content). See docs/evals.md ("Cases from runs").
+
+| Parameter | In | Type | Required | Meaning |
+|---|---|---|---|---|
+| `tenantId` | path | string | yes |  |
+| `runId` | path | string | yes |  |
+
+**Request body:** [GoldenCaseCapture](#goldencasecapture)
+
+| Status | Meaning | Body |
+|---|---|---|
+| `201` | Appended | [CapturedGoldenCase](#capturedgoldencase) |
+| `403` | Missing `nodes.write` or `runs.data` on the tenant | [Error](#error) |
+| `404` | No such run in this tenant (another tenant's run included), or no such version | [Error](#error) |
+| `409` | The run has not finished, it is already in that golden set, or the set kept changing | [Error](#error) |
+| `422` | `good` on a run that did not succeed, `bad` without a note, a label on `good`, an unknown label, an injection-suite run, or a case that does not fit the set (problems of kind `golden_set`) | [Error](#error) |
 | `503` | Error | [Error](#error) |
 
 ### Runs waiting for a human (console)
@@ -1410,7 +1479,9 @@ PUT /api/v1/tenants/{tenantId}/nodes/{nodeName}/versions/{version}/golden-set
 At most 200 cases, unique ids, at least one check each; inputs are checked against the
 version's `prompt.input_schema` (422 listing every problem, kind `golden_set`). Sealed under
 the tenant's data key. Needs `nodes.write`; audited as `node.golden_set.update` (counts and
-hashes, never cases).
+hashes, never cases). A case that keeps the id of a case captured from a run, or a case
+tagged `captured` whose id is a finished run of the node, keeps following that run's
+retention and erasure (see `DELETE .../runs/{runId}`).
 
 | Parameter | In | Type | Required | Meaning |
 |---|---|---|---|---|
@@ -1492,7 +1563,12 @@ POST /api/v1/tenants/{tenantId}/nodes/{nodeName}/versions/{version}/evals
 ordinary node runs on workers, through the request pipeline, as the tenant's eval key (created
 and managed by the control plane, see `GET .../eval-key`), or as the API key `api_key_id`
 when one is named (it must be active and allowed to run the node). The key's quotas apply and
-its usage is metered.
+its usage is metered. Trial runs (origin `eval:<eval>:<case>`) never reach a real write
+tool, and by default no MCP tool at all: every call to an `mcp://` tool goes to the eval
+sandbox, which answers the case's `tool_results` or a synthetic result marked
+`"sandbox": true`. A read tool the version's spec declares with `eval_live: true` calls the
+real tool (unless the case scripts it); built-in tools (`builtin://datasource_query`,
+`builtin://rag_search`) call the real tool unless scripted.
 `injection`: the built-in injection suite against sandboxed tools (`k` default 1); the run
 input is `input`, else the input of `input_case` (or the golden set's first case), whose
 checks then measure utility under attack. Needs `nodes.run`; audited as `node.eval.start`.
@@ -2226,7 +2302,7 @@ Authenticated with the router token. Workers deliver the decisions made on the d
 (`node.run.answer`, `node.write.approve`, `node.write.deny`, `node.run.cancel`,
 `node.eval.finish`) at least once; each event id is recorded once in the hash-chained audit
 log, so a retry appends nothing. Every other action, including the control plane's own
-(`rag.*`, `node.golden_set.*`, `node.eval_policy.update`, `node.eval.start`,
+(`rag.*`, `node.golden_set.*` (`scrub` included), `node.run.erase`, `node.eval_policy.update`, `node.eval.start`,
 `node.eval.cancel`), is counted as `rejected` and not recorded.
 
 **Request body:** object
@@ -2484,7 +2560,7 @@ Caliban-specific request options. Unknown to OpenAI clients; safe to omit.
 
 | Field | Type | Required | Meaning |
 |---|---|---|---|
-| `pii` | `off`, `mask`, `reversible` | no |  |
+| `pii` | `off`, `mask`, `reversible` | no | This request's mode. It can only make the policy stricter (ordered off < reversible < mask): the request gets the stricter of this and the tenant's mode (raised to `pii_floor`). A weaker value (`off` on a tenant that masks) is ignored, not refused, and reported in `x-caliban-pii-override` and on the usage event (`pii_override_ignored`). Not applied to node runs (`model: node/<name>`, `caliban/auto` handing to a node): their policy is the tenant's mode and the version's `guardrails.pii`. Default: the tenant's mode. |
 | `pii_floor` | `off`, `mask`, `reversible` | no | A minimum protection applied to every model class, sovereign and attested models included (a node's `guardrails.pii` sets it on its calls). Only strengthens: the request gets the stricter of this and `pii` (or the tenant's mode), ordered off < reversible < mask. |
 | `cache` | `off`, `exact`, `semantic` | no | `off`: no cache. `exact`: exact cache only. `semantic`: exact, then the semantic cache when the tenant has it on, whatever the temperature (without it, the semantic cache applies only up to `[cache.semantic] max_temperature`). Unset: exact, plus semantic within the temperature limit when the tenant has it on. |
 | `datasources` | array of string | no |  |
@@ -2920,13 +2996,47 @@ One immutable node version.
 | `expected` | object | no | Shorthand for an exact check |
 | `checks` | array of [EvalCheck](#evalcheck) | no |  |
 | `answers` | object | no | Scripted answers to human steps, by step id (`clarify#0`, `write#0@approve`) or vertex id (`clarify`, `write@approve`). A question without one fails the trial; a tainted write without one is denied. |
-| `tags` | array of string | no |  |
+| `tool_results` | object | no | Scripted tool results, by tool name (the manifest's, e.g. `refund`) or reference. A trial never calls a write tool (effect `write`), nor an `mcp://` read tool the version does not declare with `eval_live: true`: the eval sandbox answers this script, else a synthetic result marked `"sandbox": true` (valid against the tool's output schema when it declares one). An opted-in read or a built-in tool named here answers the script too; other opted-in reads and built-in tools call the real tool. |
+| `tags` | array of string | no | Free labels. A case captured from a run has `captured`, its verdict and `mast:<id>`. |
 
 ### EvalCheck
 
 A check of the run output. Text checks see the output as text (a string as is, other JSON compact).
 
-Composed of object, object, object, object, object.
+Composed of object, object, object, object, object, object.
+
+### MastLabel
+
+A MAST failure mode (arXiv 2503.13657): FM-1.1 to FM-1.5 (specification), FM-2.1 to FM-2.6 (inter-agent misalignment), FM-3.1 to FM-3.3 (task verification)
+
+One of `disobey_task_specification`, `disobey_role_specification`, `step_repetition`, `loss_of_conversation_history`, `unaware_of_termination_conditions`, `conversation_reset`, `fail_to_ask_for_clarification`, `task_derailment`, `information_withholding`, `ignored_other_agent_input`, `reasoning_action_mismatch`, `premature_termination`, `no_or_incomplete_verification`, `incorrect_verification`.
+
+### GoldenCaseCapture
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `verdict` | `good`, `bad` | yes | `good`: the run did the right thing (it must have succeeded). `bad`: it did not |
+| `note` | string | no | What the right behaviour is. Required for `bad` (the judge's rubric); added to the rubric for `good` |
+| `mast_label` | [MastLabel](#mastlabel) | no |  |
+| `version` | integer | no | The version whose golden set receives the case (default: the run's version) |
+
+### CapturedGoldenCase
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `object` | `node.golden_case` | yes |  |
+| `run_id` | string | yes |  |
+| `node` | string | yes |  |
+| `version` | integer | yes | The version whose golden set holds the case |
+| `run_version` | integer | yes |  |
+| `case_id` | string | yes | The run id |
+| `verdict` | `good`, `bad` | yes |  |
+| `mast_label` | [MastLabel](#mastlabel) or null | no |  |
+| `checks` | array of `json_schema`, `llm_judge`, `tool_call` | yes | The kinds of the checks derived from the run |
+| `previous_hash` | string or null | no | The set's hash before the capture (`null`: it was created) |
+| `golden_set` | [GoldenSet](#goldenset) | yes |  |
+| `content_visible` | boolean | yes | The caller holds runs.data: `case` is included |
+| `case` | [GoldenCase](#goldencase) | no |  |
 
 ### GoldenSet
 
@@ -3021,6 +3131,10 @@ The evals that met the bar (in the audit entries `node.publish` and `node.promot
 | `latency_ms` | [LatencyPercentiles](#latencypercentiles) | yes |  |
 | `cases` | array of object | yes |  |
 
+### PendingVerdict
+
+The verdict of a trial whose run has been created and not scored yet (`status: running`): an empty object. Every other verdict has required fields, so `{}` matches this variant only.
+
 ### GoldenVerdict
 
 | Field | Type | Required | Meaning |
@@ -3028,6 +3142,8 @@ The evals that met the bar (in the audit entries `node.publish` and `node.promot
 | `run_status` | [RunStatus](#runstatus) | yes |  |
 | `checks` | array of object | yes |  |
 | `judge_usd` | number | no |  |
+| `tool_calls` | integer | no | Tool calls the trial's run made (their arguments are in the sealed `detail.tool_calls`) |
+| `sandboxed_calls` | integer | no | Of them, the ones the eval sandbox answered (every write, and scripted reads): never sent to the tool |
 
 ### InjectionVerdict
 
@@ -3163,6 +3279,7 @@ Tokens of the run's model calls so far
 | `cost_usd` | number | yes |  |
 | `origin` | string | no |  |
 | `invoker` | string | yes | `api_key:<hash prefix>` |
+| `mast_label` | [MastLabel](#mastlabel) | no |  |
 | `created_at` | string | yes |  |
 | `finished_at` | string or null | no |  |
 
@@ -3210,6 +3327,7 @@ The answer guard (docs/nodes.md): present when the final output carried untruste
 | `invoker` | string | no |  |
 | `origin` | string or null | no |  |
 | `input_labels` | array of string | no | Taint labels the run input carries from the start (`caller`) |
+| `mast_label` | [MastLabel](#mastlabel) or null | no | The MAST failure mode a reviewer labelled the run with when capturing it as `bad` (`POST .../runs/{runId}/golden-case`); `null` when unlabelled |
 | `error` | string or null | no |  |
 | `stop_reason` | string or null | no |  |
 | `partial` | boolean | no |  |
@@ -3330,6 +3448,7 @@ How Caliban authenticates to the server. Client tokens are never passed through.
 | `route` | string | no | In transit only (never in reports): the path a caliban/auto request took |
 | `route_fallback` | string | no | In transit only (never in reports): why a model answered rather than a node; counted in `by_route` |
 | `purpose` | `rag.ingest`, `rag.search` | no | Work Caliban did on the tenant's behalf: `rag.ingest` (embedding a collection's documents), `rag.search` (a node's retrieval query, its embedding and reranking). Absent for client calls and node model calls. Kept in reports (billing-class, not content-class). |
+| `pii_override_ignored` | `off`, `reversible` | no | The request's `caliban.pii` when it asked for weaker personal-data protection than the tenant's policy and was ignored (migration 0038). Policy-class: what the caller asked for, never content. Absent otherwise. |
 | `timings` | [UsageTimings](#usagetimings) | no |  |
 
 ### UsageTimings

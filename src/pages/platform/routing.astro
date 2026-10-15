@@ -1,7 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import PageHero from '../../components/PageHero.astro';
-import EvidenceGrid from '../../components/EvidenceGrid.astro';
+import EvidenceGrid, { type EvidenceItem } from '../../components/EvidenceGrid.astro';
 import Timeline from '../../components/Timeline.astro';
 import CodeTabs from '../../components/CodeTabs.astro';
 import StatusTable from '../../components/StatusTable.astro';
@@ -10,7 +10,7 @@ import Close from '../../components/air/Close.astro';
 import RouteTrace from '../../components/platform/RouteTrace.astro';
 import { crates } from '../../data/status';
 
-const evidence = [
+const evidence: EvidenceItem[] = [
   {
     value: 'Up to 98%', bar: { kind: 'fill', values: [98] }, label: 'Lower cost while matching the best single model',
     detail: 'A learned cascade with a scorer that decides when to stop, or +4% accuracy at equal cost.',
