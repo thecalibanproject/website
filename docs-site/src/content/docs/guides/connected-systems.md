@@ -75,6 +75,6 @@ An assistant spec names that exact reference and declares the action's effect (`
 
 To withdraw an approval, choose **Revoke approval** (`POST .../tools/{tool}/revoke`). Published versions that use the action then fail when they call it.
 
-:::caution
-Quality tests call approved actions for real. See [write tools in tests](tests-and-go-live.md#write-tools-in-tests).
+:::note
+During tests, approved actions are answered by a stand-in, not by your system. A read-only action can be set to run live in tests. See [write tools in tests](tests-and-go-live.md#write-tools-in-tests).
 :::

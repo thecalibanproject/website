@@ -15,11 +15,13 @@ Plain model requests that no assistant handles are not conversations: find them 
 ![The detail page of a support-desk conversation: run facts, budget used against limits, the answer check, data labels and the steps](../../../assets/shots/run-detail.webp)
 *A conversation of the fintech `support-desk` assistant. It ran 7 steps in 80 s, most of it waiting for a person to approve the refund; it cost $0.0008 and protected 15 items of personal data in its model calls.*
 
+To turn a finished conversation into a test case, choose **Save as test**. See [save a run as a test](tests-and-go-live.md#save-a-run-as-a-test).
+
 The **Run** card:
 
 | Field | Meaning |
 |---|---|
-| Started by | The API key (by its id), the console user, or a test run (`eval:...`) |
+| Started by | The API key (by its id), the console user, or a test run (`eval:<test run>:<case>`) |
 | Version fingerprint | Which exact version ran (`sha256:...`) |
 | Input labels | `caller` when the app marked part of its input as [untrusted](../reference/glossary.md#untrusted) |
 | Created, started, finished, duration | Duration includes time waiting for a person |
